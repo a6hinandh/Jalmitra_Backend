@@ -11,7 +11,7 @@ load_dotenv()
 
 # 2. Connect to Gemini
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-llmmodel = genai.GenerativeModel("gemini-1.5-flash")
+llmmodel = genai.GenerativeModel("gemini-3.1-flash-lite")
 
 # 3. Function to retrieve context from Pinecone
 def query_index(index, model, query_text, top_k=5):

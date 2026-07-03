@@ -90,7 +90,7 @@ def query_to_cypher(user_query):
     For filtered counts, always place WHERE clause **before RETURN**.
     Remove ```cypher from the beginning and ``` from the end and return the response
     """
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    model = genai.GenerativeModel("gemini-3.1-flash-lite")
     response = model.generate_content(prompt)
     return response.text.strip()
 
@@ -130,7 +130,7 @@ def generate_response(answer, query):
     Query: {query}
     Answer:
     """
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    model = genai.GenerativeModel("gemini-3.1-flash-lite")
     response = model.generate_content(prompt)
     return response.text
 

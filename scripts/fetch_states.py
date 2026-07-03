@@ -16,7 +16,7 @@ base_payload = {
     "year": "2024-2025"
 }
 
-os.makedirs("output", exist_ok=True)
+os.makedirs("data/output", exist_ok=True)
 
 # -------------------
 # Step 1: COUNTRY (India level)
@@ -35,7 +35,7 @@ resp.raise_for_status()
 india_data = resp.json()
 
 # Save raw JSON
-with open("output/india.json", "w", encoding="utf-8") as f:
+with open("data/output/india.json", "w", encoding="utf-8") as f:
     json.dump(india_data, f, indent=2)
 
 # Format into CSV
@@ -53,14 +53,14 @@ for entry in india_data:
             "uuid": entry.get("locuuid")
         })
 
-pd.DataFrame(states_rows).to_csv("output/india.csv", index=False)
+pd.DataFrame(states_rows).to_csv("data/output/india.csv", index=False)
 print(f"✅ Saved {len(states_rows)} states into india.csv and india.json")
 
 # -------------------
 # Step 2: DISTRICTS (per state)
 # -------------------
 
-os.makedirs("states", exist_ok=True)
+os.makedirs("data/states", exist_ok=True)
 
 for s in india_data:
     state_name = s["locationName"]
@@ -83,7 +83,7 @@ for s in india_data:
     state_data = r.json()
 
     # Save raw JSON
-    with open(f"states/{state_name}.json", "w", encoding="utf-8") as f:
+    with open(f"data/states/{state_name}.json", "w", encoding="utf-8") as f:
         json.dump(state_data, f, indent=2)
 
     # Format into CSV
@@ -102,7 +102,7 @@ for s in india_data:
             })
 
     if district_rows:
-        pd.DataFrame(district_rows).to_csv(f"states/{state_name}.csv", index=False)
+        pd.DataFrame(district_rows).to_csv(f"data/states/{state_name}.csv", index=False)
         print(f"✅ Saved {len(district_rows)} districts for {state_name}")
     else:
         print(f"⚠ No districts found for {state_name}")
@@ -114,9 +114,9 @@ for s in india_data:
 # Step 3: BLOCKS (per district)
 # -------------------
 
-os.makedirs("KERALA", exist_ok=True)
+os.makedirs("data/KERALA", exist_ok=True)
 
-with open("states/KERALA.json", "r") as file:
+with open("data/states/KERALA.json", "r") as file:
     data = json.load(file)
 
 for s in data:
@@ -141,7 +141,7 @@ for s in data:
     district_data = r.json()
 
     # Save raw JSON
-    with open(f"KERALA/{district_name}.json", "w", encoding="utf-8") as f:
+    with open(f"data/KERALA/{district_name}.json", "w", encoding="utf-8") as f:
         json.dump(district_data, f, indent=2)
 
     # Format into CSV
@@ -160,7 +160,7 @@ for s in data:
             })
 
     if district_rows:
-        pd.DataFrame(district_rows).to_csv(f"states/{district_name}.csv", index=False)
+        pd.DataFrame(district_rows).to_csv(f"data/states/{district_name}.csv", index=False)
         print(f"✅ Saved {len(district_rows)} districts for {district_name}")
     else:
         print(f"⚠ No districts found for {district_name}")

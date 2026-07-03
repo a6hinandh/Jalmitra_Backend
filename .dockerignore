@@ -1,0 +1,45 @@
+# Never bake secrets or local env into the image — supplied at runtime
+.env
+.env.local
+.env.*.local
+
+# Version control / CI
+.git
+.github
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Runtime state — must not ship inside the image
+alerts.db
+*.db
+*.sqlite
+*.sqlite3
+
+# Dev-only scripts — not imported by the server at runtime.
+# NOTE: data/ is intentionally NOT excluded — core/graphrag.py and
+# forecast_service.py read data/output/india.json and data/states/*.json
+# as a local fallback when Neo4j is unavailable, so it must ship in the image.
+scripts/
+
+# Docs
+README.md
+CONTRIBUTING.md
+CODE_OF_CONDUCT.md
+SECURITY.md
+*.md
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# AI assistant workspace
+.claude/

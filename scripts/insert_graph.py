@@ -162,7 +162,7 @@ def insert_all(tx, data):
 
 # --- Run the insert ---
 if __name__ == "__main__":
-    with open("output/india.json", "r") as f:
+    with open("data/output/india.json", "r") as f:
         data = json.load(f)
 
     driver = GraphDatabase.driver(

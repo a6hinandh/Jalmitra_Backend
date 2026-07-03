@@ -35,4 +35,4 @@ def check_uuids(json_file):
         print(entry)
 
 if __name__ == "__main__":
-    check_uuids("states/KERALA.json")
+    check_uuids("data/states/KERALA.json")

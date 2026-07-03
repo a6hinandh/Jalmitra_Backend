@@ -1,1334 +1,436 @@
-# # server.py
-# from fastapi import FastAPI
-# from pydantic import BaseModel
-# from fastapi.middleware.cors import CORSMiddleware
-# from graphrag import graphrag_chatbot
-
-# # Define input format
-# class ChatRequest(BaseModel):
-#     query: str
-#     role: str = "general"
-#     debug: bool = False
-
-# # Initialize app
-# app = FastAPI()
-
-# # Allow frontend (React) to connect
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=["*"],   # ⚠️ for dev only, restrict in prod
-#     allow_credentials=True,
-#     allow_methods=["*"],
-#     allow_headers=["*"],
-# )
-
-# @app.post("/chat")
-# async def chat_endpoint(request: ChatRequest):
-#     result = graphrag_chatbot(request.query, role=request.role, debug_mode=request.debug)
-#     return result
-
-# @app.get("/")
-# async def root():
-#     return {"message": "INGRES AI ChatBot API is running", "status": "healthy"}
-
-# @app.get("/health")
-# async def health_check():
-#     return {"status": "healthy", "service": "INGRES AI ChatBot"}
-
-# # Add this at the end to run with python server.py
-# if __name__ == "__main__":
-#     import uvicorn
-#     print("🚀 Starting INGRES AI ChatBot API...")
-#     print("📡 Server will be available at: http://localhost:8000")
-#     print("📚 API docs at: http://localhost:8000/docs")
-#     uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
-
-
-
-# # server.py
-# from fastapi import FastAPI, HTTPException
-# from pydantic import BaseModel, Field
-# from fastapi.middleware.cors import CORSMiddleware
-# from graphrag import graphrag_chatbot
-# from typing import Optional
-# import time
-
-# # Define enhanced input format with role support
-# class ChatRequest(BaseModel):
-#     query: str = Field(..., description="User's natural language query")
-#     role: str = Field(default="general", description="User role: farmer, policymaker, researcher, or general")
-#     debug: bool = Field(default=False, description="Enable debug mode for detailed response info")
-
-# class ChatResponse(BaseModel):
-#     query: str
-#     role: str
-#     final_answer: str
-#     processing_time: float
-#     cypher_used: Optional[str]
-#     semantic_results_count: int
-#     graph_results_count: int
-#     interpretation_applied: bool
-#     error: Optional[str]
-#     debug_info: Optional[dict]
-
-# # Initialize app
-# app = FastAPI(
-#     title="INGRES AI ChatBot API",
-#     description="Enhanced GraphRAG chatbot with role-aware insights for groundwater data analysis",
-#     version="2.0.0"
-# )
-
-# # Allow frontend (React) to connect
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=["*"],   # ⚠️ for dev only, restrict in prod
-#     allow_credentials=True,
-#     allow_methods=["*"],
-#     allow_headers=["*"],
-# )
-
-# # Role validation
-# VALID_ROLES = ["farmer", "policymaker", "researcher", "general"]
-
-# @app.post("/chat", response_model=ChatResponse)
-# async def chat_endpoint(request: ChatRequest):
-#     """
-#     Enhanced chat endpoint with role-aware responses
-#     """
-#     # Validate role
-#     if request.role.lower() not in VALID_ROLES:
-#         raise HTTPException(
-#             status_code=400, 
-#             detail=f"Invalid role. Must be one of: {', '.join(VALID_ROLES)}"
-#         )
-    
-#     try:
-#         # Process query with enhanced GraphRAG
-#         result = graphrag_chatbot(
-#             request.query, 
-#             role=request.role.lower(), 
-#             debug_mode=request.debug
-#         )
-        
-#         # Prepare debug info if requested
-#         debug_info = None
-#         if request.debug:
-#             debug_info = {
-#                 "semantic_results": result.get("semantic_results", []),
-#                 "graph_results": result.get("graph_results", []),
-#                 "cypher_query": result.get("cypher_used"),
-#                 "processing_details": {
-#                     "role_applied": result.get("role"),
-#                     "interpretation_applied": result.get("interpretation_applied", False)
-#                 }
-#             }
-        
-#         # Return structured response
-#         return ChatResponse(
-#             query=result["query"],
-#             role=result["role"],
-#             final_answer=result["final_answer"],
-#             processing_time=result["processing_time"],
-#             cypher_used=result.get("cypher_used"),
-#             semantic_results_count=len(result.get("semantic_results", [])),
-#             graph_results_count=len(result.get("graph_results", [])),
-#             interpretation_applied=result.get("interpretation_applied", False),
-#             error=result.get("error"),
-#             debug_info=debug_info
-#         )
-    
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
-
-# @app.get("/")
-# async def root():
-#     return {
-#         "message": "INGRES AI ChatBot API v2.0 is running", 
-#         "status": "healthy",
-#         "features": [
-#             "Role-aware responses (farmer, policymaker, researcher, general)",
-#             "Interpretive insights (high/low/normal context)",
-#             "Enhanced GraphRAG with Pinecone + Neo4j + Gemini",
-#             "Robust Cypher handling and validation"
-#         ]
-#     }
-
-# @app.get("/health")
-# async def health_check():
-#     return {
-#         "status": "healthy", 
-#         "service": "INGRES AI ChatBot v2.0",
-#         "timestamp": time.time()
-#     }
-
-# @app.get("/roles")
-# async def get_roles():
-#     """
-#     Get available user roles and their descriptions
-#     """
-#     return {
-#         "roles": {
-#             "farmer": {
-#                 "description": "Practical recommendations and irrigation advice",
-#                 "focus": "Actionable insights for agricultural decision-making",
-#                 "example_response": "Simple language with farming strategies"
-#             },
-#             "policymaker": {
-#                 "description": "Governance insights and sustainability assessment", 
-#                 "focus": "Policy implications and regulatory perspectives",
-#                 "example_response": "Administrative impact and intervention needs"
-#             },
-#             "researcher": {
-#                 "description": "Detailed analysis and research perspectives",
-#                 "focus": "Technical accuracy and analytical insights",
-#                 "example_response": "Precise data with research opportunities"
-#             },
-#             "general": {
-#                 "description": "Clear explanations in everyday language",
-#                 "focus": "Accessible information for non-experts",
-#                 "example_response": "Plain explanations using high/low/normal context"
-#             }
-#         }
-#     }
-
-# @app.get("/metrics")
-# async def get_metrics_info():
-#     """
-#     Get information about supported metrics and their interpretation thresholds
-#     """
-#     return {
-#         "supported_metrics": {
-#             "rainfall": {
-#                 "unit": "mm",
-#                 "thresholds": {
-#                     "very_low": "< 500mm",
-#                     "below_normal": "500-1000mm", 
-#                     "normal": "1000-1500mm",
-#                     "above_normal": "1500-2500mm",
-#                     "high": "2500-3000mm",
-#                     "very_high": "> 3000mm"
-#                 }
-#             },
-#             "groundwater_draft": {
-#                 "unit": "ham", 
-#                 "thresholds": {
-#                     "low": "< 10 ham",
-#                     "normal": "10-50 ham",
-#                     "high": "50-100 ham", 
-#                     "concerning": "100-150 ham",
-#                     "critical": "> 150 ham"
-#                 }
-#             },
-#             "recharge": {
-#                 "unit": "ham",
-#                 "thresholds": {
-#                     "poor": "< 20 ham",
-#                     "normal": "20-80 ham",
-#                     "good": "80-150 ham",
-#                     "excellent": "> 150 ham"
-#                 }
-#             },
-#             "stage_of_extraction": {
-#                 "unit": "%",
-#                 "thresholds": {
-#                     "safe": "< 70%",
-#                     "semi_critical": "70-90%", 
-#                     "critical": "90-100%",
-#                     "over_exploited": "> 100%"
-#                 }
-#             }
-#         }
-#     }
-
-# @app.post("/validate-query")
-# async def validate_query(request: dict):
-#     """
-#     Validate a query without processing it - useful for frontend validation
-#     """
-#     query = request.get("query", "").strip()
-#     role = request.get("role", "general").lower()
-    
-#     if not query:
-#         return {"valid": False, "message": "Query cannot be empty"}
-    
-#     if role not in VALID_ROLES:
-#         return {"valid": False, "message": f"Invalid role. Must be one of: {', '.join(VALID_ROLES)}"}
-    
-#     if len(query) > 500:
-#         return {"valid": False, "message": "Query too long. Maximum 500 characters."}
-    
-#     return {"valid": True, "message": "Query is valid"}
-
-# # Add this at the end to run with python server.py
-# if __name__ == "__main__":
-#     import uvicorn
-#     print("🚀 Starting Enhanced INGRES AI ChatBot API v2.0...")
-#     print("🔗 Server will be available at: http://localhost:8000")
-#     print("📚 API docs at: http://localhost:8000/docs")
-#     print("🎭 Role-aware responses: farmer, policymaker, researcher, general")
-#     print("🎯 Interpretive insights: high/low/normal context for all metrics")
-#     uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# # server.py - Enhanced with Data Visualization Endpoints
-# from fastapi import FastAPI, HTTPException
-# from pydantic import BaseModel, Field
-# from fastapi.middleware.cors import CORSMiddleware
-# from graphrag import graphrag_chatbot, run_cypher
-# from typing import Optional, List, Dict, Any
-# import time
-# import json
-
-# # Define enhanced input formats
-# class ChatRequest(BaseModel):
-#     query: str = Field(..., description="User's natural language query")
-#     role: str = Field(default="general", description="User role: farmer, policymaker, researcher, or general")
-#     debug: bool = Field(default=False, description="Enable debug mode for detailed response info")
-
-# class DataVisualizationRequest(BaseModel):
-#     chart_type: str = Field(..., description="Type of chart: bar, line, pie, doughnut, radar, scatter")
-#     comparison_type: str = Field(..., description="Type of comparison: state, district, yearly, metric")
-#     states: Optional[List[str]] = Field(default=None, description="List of states to compare")
-#     districts: Optional[List[str]] = Field(default=None, description="List of districts to compare")
-#     years: Optional[List[int]] = Field(default=None, description="List of years to compare")
-#     metrics: Optional[List[str]] = Field(default=None, description="List of metrics to visualize")
-#     filters: Optional[Dict[str, Any]] = Field(default=None, description="Additional filters")
-
-# class ChatResponse(BaseModel):
-#     query: str
-#     role: str
-#     final_answer: str
-#     processing_time: float
-#     cypher_used: Optional[str]
-#     semantic_results_count: int
-#     graph_results_count: int
-#     interpretation_applied: bool
-#     error: Optional[str]
-#     debug_info: Optional[dict]
-
-# class DataVisualizationResponse(BaseModel):
-#     chart_type: str
-#     data: Dict[str, Any]
-#     metadata: Dict[str, Any]
-#     processing_time: float
-#     error: Optional[str]
-
-# # Initialize app
-# app = FastAPI(
-#     title="JALMITRA AI ChatBot API",
-#     description="Enhanced GraphRAG chatbot with data visualization for groundwater analysis",
-#     version="3.0.0"
-# )
-
-# # CORS middleware
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=["*"],
-#     allow_credentials=True,
-#     allow_methods=["*"],
-#     allow_headers=["*"],
-# )
-
-# # Constants
-# VALID_ROLES = ["farmer", "policymaker", "researcher", "general"]
-# VALID_CHART_TYPES = ["bar", "line", "pie", "doughnut", "radar", "scatter", "area"]
-# VALID_METRICS = ["rainfall", "recharge", "draft", "availability", "stage_extraction", "groundwater", "area"]
-
-# # Data visualization query generators
-# def generate_state_comparison_query(states: List[str], metric: str, year: int = 2024):
-#     """Generate Cypher query for state-wise comparison"""
-#     states_str = '", "'.join([s.upper() for s in states])
-    
-#     metric_mapping = {
-#         "rainfall": ("Rainfall", "n.total"),
-#         "recharge": ("Recharge", "n.total"),
-#         "draft": ("Draft", "n.total"),
-#         "availability": ("Availability", "n.total"),
-#         "groundwater": ("GroundWaterAvailability", "n.total")
-#     }
-
-#     node_type, property_path = metric_mapping.get(metric, ("Rainfall", "n.total"))
-
-#     return f'''
-#     MATCH (c:Country {{name:"INDIA"}})-[:HAS_STATE]->(s:State)-[:HAS_YEAR]->(y:Year {{year:{year}}})-[:HAS_{metric.upper()}]->(n:{node_type})
-#     WHERE s.name IN ["{states_str}"]
-#     RETURN s.name AS state, {property_path} AS value
-#     ORDER BY s.name
-#     '''
-
-# def generate_district_comparison_query(state: str, districts: List[str], metric: str, year: int = 2024):
-#     """Generate Cypher query for district-wise comparison"""
-#     districts_str = '", "'.join([d.upper() for d in districts])
-    
-#     metric_mapping = {
-#         "rainfall": ("Rainfall", "n.total"),
-#         "recharge": ("Recharge", "n.total"),
-#         "draft": ("Draft", "n.total"),
-#         "availability": ("Availability", "n.total"),
-#         "groundwater": ("GroundWaterAvailability", "n.total")
-#     }
-
-#     node_type, property_path = metric_mapping.get(metric, ("Rainfall", "n.total"))
-
-#     return f'''
-#     MATCH (c:Country {{name:"INDIA"}})-[:HAS_STATE]->(s:State {{name:"{state.upper()}"}})-[:HAS_DISTRICT]->(d:District)-[:HAS_YEAR]->(y:Year {{year:{year}}})-[:HAS_{metric.upper()}]->(n:{node_type})
-#     WHERE d.name IN ["{districts_str}"]
-#     RETURN d.name AS district, {property_path} AS value
-#     ORDER BY d.name
-#     '''
-
-# def generate_yearly_trend_query(entity: str, entity_type: str, metric: str, years: List[int]):
-#     """Generate Cypher query for yearly trend analysis"""
-#     years_str = ', '.join(map(str, years))
-    
-#     metric_mapping = {
-#         "rainfall": ("Rainfall", "n.total"),
-#         "recharge": ("Recharge", "n.total"),
-#         "draft": ("Draft", "n.total"),
-#         "availability": ("Availability", "n.total"),
-#         "groundwater": ("GroundWaterAvailability", "n.total")
-#     }
-
-#     node_type, property_path = metric_mapping.get(metric, ("Rainfall", "n.total"))
-
-#     if entity_type == "state":
-#         return f'''
-#         MATCH (c:Country {{name:"INDIA"}})-[:HAS_STATE]->(s:State {{name:"{entity.upper()}"}})-[:HAS_YEAR]->(y:Year)-[:HAS_{metric.upper()}]->(n:{node_type})
-#         WHERE y.year IN [{years_str}]
-#         RETURN y.year AS year, {property_path} AS value
-#         ORDER BY y.year
-#         '''
-#     else:  # district
-#         state_name = entity.split(',')[1].strip() if ',' in entity else "KERALA"  # Default fallback
-#         district_name = entity.split(',')[0].strip()
-#         return f'''
-#         MATCH (c:Country {{name:"INDIA"}})-[:HAS_STATE]->(s:State {{name:"{state_name.upper()}"}})-[:HAS_DISTRICT]->(d:District {{name:"{district_name.upper()}"}})-[:HAS_YEAR]->(y:Year)-[:HAS_{metric.upper()}]->(n:{node_type})
-#         WHERE y.year IN [{years_str}]
-#         RETURN y.year AS year, {property_path} AS value
-#         ORDER BY y.year
-#         '''
-
-# def generate_multi_metric_query(entity: str, entity_type: str, metrics: List[str], year: int = 2024):
-#     """Generate Cypher query for multi-metric comparison"""
-#     if entity_type == "state":
-#         base_match = f'MATCH (c:Country {{name:"INDIA"}})-[:HAS_STATE]->(s:State {{name:"{entity.upper()}"}})-[:HAS_YEAR]->(y:Year {{year:{year}}})'
-#     else:
-#         state_name = entity.split(',')[1].strip() if ',' in entity else "KERALA"
-#         district_name = entity.split(',')[0].strip()
-#         base_match = f'MATCH (c:Country {{name:"INDIA"}})-[:HAS_STATE]->(s:State {{name:"{state_name.upper()}"}})-[:HAS_DISTRICT]->(d:District {{name:"{district_name.upper()}"}})-[:HAS_YEAR]->(y:Year {{year:{year}}})'
-    
-#     metric_clauses = []
-#     return_clauses = []
-    
-#     for metric in metrics:
-#         metric_mapping = {
-#             "rainfall": ("Rainfall", "r", "rainfall"),
-#             "recharge": ("Recharge", "rec", "recharge"),
-#             "draft": ("Draft", "dr", "draft"),
-#             "availability": ("Availability", "av", "availability"),
-#             "groundwater": ("GroundWaterAvailability", "gw", "groundwater")
-#         }
-        
-#         if metric in metric_mapping:
-#             node_type, alias, return_name = metric_mapping[metric]
-#             metric_clauses.append(f'OPTIONAL MATCH (y)-[:HAS_{metric.upper()}]->({alias}:{node_type})')
-#             return_clauses.append(f'{alias}.total AS {return_name}')
-    
-#     query = f'''
-#     {base_match}
-#     {' '.join(metric_clauses)}
-#     RETURN {', '.join(return_clauses)}
-#     '''
-    
-#     return query
-
-# # Chart.js data formatters
-# def format_bar_chart_data(data: List[Dict], x_field: str, y_field: str, title: str):
-#     """Format data for bar chart"""
-#     return {
-#         "type": "bar",
-#         "data": {
-#             "labels": [item[x_field] for item in data],
-#             "datasets": [{
-#                 "label": title,
-#                 "data": [item[y_field] if item[y_field] is not None else 0 for item in data],
-#                 "backgroundColor": [
-#                     "rgba(59, 130, 246, 0.8)",
-#                     "rgba(16, 185, 129, 0.8)",
-#                     "rgba(245, 158, 11, 0.8)",
-#                     "rgba(239, 68, 68, 0.8)",
-#                     "rgba(139, 92, 246, 0.8)",
-#                     "rgba(236, 72, 153, 0.8)"
-#                 ],
-#                 "borderColor": [
-#                     "rgba(59, 130, 246, 1)",
-#                     "rgba(16, 185, 129, 1)",
-#                     "rgba(245, 158, 11, 1)",
-#                     "rgba(239, 68, 68, 1)",
-#                     "rgba(139, 92, 246, 1)",
-#                     "rgba(236, 72, 153, 1)"
-#                 ],
-#                 "borderWidth": 2,
-#                 "borderRadius": 8,
-#                 "borderSkipped": False
-#             }]
-#         },
-#         "options": {
-#             "responsive": True,
-#             "plugins": {
-#                 "title": {
-#                     "display": True,
-#                     "text": title,
-#                     "font": {"size": 18, "weight": "bold"}
-#                 },
-#                 "legend": {
-#                     "display": False
-#                 }
-#             },
-#             "scales": {
-#                 "y": {
-#                     "beginAtZero": True,
-#                     "grid": {"color": "rgba(0, 0, 0, 0.1)"},
-#                     "ticks": {"font": {"size": 12}}
-#                 },
-#                 "x": {
-#                     "grid": {"display": False},
-#                     "ticks": {"font": {"size": 12}}
-#                 }
-#             }
-#         }
-#     }
-
-# def format_line_chart_data(data: List[Dict], x_field: str, y_field: str, title: str):
-#     """Format data for line chart"""
-#     return {
-#         "type": "line",
-#         "data": {
-#             "labels": [str(item[x_field]) for item in data],
-#             "datasets": [{
-#                 "label": title,
-#                 "data": [item[y_field] if item[y_field] is not None else 0 for item in data],
-#                 "borderColor": "rgba(59, 130, 246, 1)",
-#                 "backgroundColor": "rgba(59, 130, 246, 0.1)",
-#                 "borderWidth": 3,
-#                 "fill": True,
-#                 "tension": 0.4,
-#                 "pointBackgroundColor": "rgba(59, 130, 246, 1)",
-#                 "pointBorderColor": "#ffffff",
-#                 "pointBorderWidth": 2,
-#                 "pointRadius": 6,
-#                 "pointHoverRadius": 8
-#             }]
-#         },
-#         "options": {
-#             "responsive": True,
-#             "plugins": {
-#                 "title": {
-#                     "display": True,
-#                     "text": title,
-#                     "font": {"size": 18, "weight": "bold"}
-#                 }
-#             },
-#             "scales": {
-#                 "y": {
-#                     "beginAtZero": True,
-#                     "grid": {"color": "rgba(0, 0, 0, 0.1)"}
-#                 },
-#                 "x": {
-#                     "grid": {"color": "rgba(0, 0, 0, 0.1)"}
-#                 }
-#             }
-#         }
-#     }
-
-# def format_pie_chart_data(data: List[Dict], label_field: str, value_field: str, title: str):
-#     """Format data for pie chart"""
-#     return {
-#         "type": "pie",
-#         "data": {
-#             "labels": [item[label_field] for item in data],
-#             "datasets": [{
-#                 "data": [item[value_field] if item[value_field] is not None else 0 for item in data],
-#                 "backgroundColor": [
-#                     "rgba(59, 130, 246, 0.8)",
-#                     "rgba(16, 185, 129, 0.8)",
-#                     "rgba(245, 158, 11, 0.8)",
-#                     "rgba(239, 68, 68, 0.8)",
-#                     "rgba(139, 92, 246, 0.8)",
-#                     "rgba(236, 72, 153, 0.8)"
-#                 ],
-#                 "borderColor": "#ffffff",
-#                 "borderWidth": 3,
-#                 "hoverBorderWidth": 4
-#             }]
-#         },
-#         "options": {
-#             "responsive": True,
-#             "plugins": {
-#                 "title": {
-#                     "display": True,
-#                     "text": title,
-#                     "font": {"size": 18, "weight": "bold"}
-#                 },
-#                 "legend": {
-#                     "position": "right",
-#                     "labels": {"font": {"size": 12}}
-#                 }
-#             }
-#         }
-#     }
-
-# def format_multi_metric_data(data: List[Dict], metrics: List[str], title: str):
-#     """Format data for multi-metric radar chart"""
-#     if not data or not data[0]:
-#         return {"error": "No data available"}
-    
-#     record = data[0]
-    
-#     return {
-#         "type": "radar",
-#         "data": {
-#             "labels": [metric.title() for metric in metrics],
-#             "datasets": [{
-#                 "label": title,
-#                 "data": [record.get(metric, 0) or 0 for metric in metrics],
-#                 "backgroundColor": "rgba(59, 130, 246, 0.2)",
-#                 "borderColor": "rgba(59, 130, 246, 1)",
-#                 "borderWidth": 3,
-#                 "pointBackgroundColor": "rgba(59, 130, 246, 1)",
-#                 "pointBorderColor": "#ffffff",
-#                 "pointBorderWidth": 2,
-#                 "pointRadius": 6
-#             }]
-#         },
-#         "options": {
-#             "responsive": True,
-#             "plugins": {
-#                 "title": {
-#                     "display": True,
-#                     "text": title,
-#                     "font": {"size": 18, "weight": "bold"}
-#                 }
-#             },
-#             "scales": {
-#                 "r": {
-#                     "beginAtZero": True,
-#                     "grid": {"color": "rgba(0, 0, 0, 0.1)"},
-#                     "pointLabels": {"font": {"size": 12}}
-#                 }
-#             }
-#         }
-#     }
-
-# # API Endpoints
-# @app.post("/chat", response_model=ChatResponse)
-# async def chat_endpoint(request: ChatRequest):
-#     """Enhanced chat endpoint with role-aware responses"""
-#     if request.role.lower() not in VALID_ROLES:
-#         raise HTTPException(
-#             status_code=400, 
-#             detail=f"Invalid role. Must be one of: {', '.join(VALID_ROLES)}"
-#         )
-    
-#     try:
-#         result = graphrag_chatbot(
-#             request.query, 
-#             role=request.role.lower(), 
-#             debug_mode=request.debug
-#         )
-        
-#         debug_info = None
-#         if request.debug:
-#             debug_info = {
-#                 "semantic_results": result.get("semantic_results", []),
-#                 "graph_results": result.get("graph_results", []),
-#                 "cypher_query": result.get("cypher_used"),
-#                 "processing_details": {
-#                     "role_applied": result.get("role"),
-#                     "interpretation_applied": result.get("interpretation_applied", False)
-#                 }
-#             }
-        
-#         return ChatResponse(
-#             query=result["query"],
-#             role=result["role"],
-#             final_answer=result["final_answer"],
-#             processing_time=result["processing_time"],
-#             cypher_used=result.get("cypher_used"),
-#             semantic_results_count=len(result.get("semantic_results", [])),
-#             graph_results_count=len(result.get("graph_results", [])),
-#             interpretation_applied=result.get("interpretation_applied", False),
-#             error=result.get("error"),
-#             debug_info=debug_info
-#         )
-    
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
-
-# @app.post("/visualize", response_model=DataVisualizationResponse)
-# async def data_visualization_endpoint(request: DataVisualizationRequest):
-#     """Data visualization endpoint"""
-#     start_time = time.time()
-    
-#     try:
-#         # Validate request
-#         if request.chart_type not in VALID_CHART_TYPES:
-#             raise HTTPException(
-#                 status_code=400,
-#                 detail=f"Invalid chart type. Must be one of: {', '.join(VALID_CHART_TYPES)}"
-#             )
-        
-#         # Generate appropriate query based on comparison type
-#         cypher_query = None
-#         chart_data = None
-        
-#         if request.comparison_type == "state" and request.states and request.metrics:
-#             metric = request.metrics[0]
-#             year = request.filters.get("year", 2024) if request.filters else 2024
-#             cypher_query = generate_state_comparison_query(request.states, metric, year)
-            
-#         elif request.comparison_type == "district" and request.districts and request.metrics:
-#             state = request.filters.get("state", "Kerala") if request.filters else "Kerala"
-#             metric = request.metrics[0]
-#             year = request.filters.get("year", 2024) if request.filters else 2024
-#             cypher_query = generate_district_comparison_query(state, request.districts, metric, year)
-            
-#         elif request.comparison_type == "yearly" and request.years and request.metrics:
-#             entity = request.filters.get("entity", "Kerala") if request.filters else "Kerala"
-#             entity_type = request.filters.get("entity_type", "state") if request.filters else "state"
-#             metric = request.metrics[0]
-#             cypher_query = generate_yearly_trend_query(entity, entity_type, metric, request.years)
-            
-#         elif request.comparison_type == "metric" and request.metrics:
-#             entity = request.filters.get("entity", "Kerala") if request.filters else "Kerala"
-#             entity_type = request.filters.get("entity_type", "state") if request.filters else "state"
-#             year = request.filters.get("year", 2024) if request.filters else 2024
-#             cypher_query = generate_multi_metric_query(entity, entity_type, request.metrics, year)
-        
-#         if not cypher_query:
-#             raise HTTPException(status_code=400, detail="Could not generate appropriate query")
-        
-#         # Execute query
-#         raw_data = run_cypher(cypher_query)
-        
-#         if not raw_data:
-#             raise HTTPException(status_code=404, detail="No data found for the specified parameters")
-        
-#         # Format data based on chart type
-#         title = f"{request.metrics[0].title()} Comparison" if request.metrics else "Data Visualization"
-        
-#         if request.chart_type in ["bar", "column"]:
-#             if request.comparison_type == "state":
-#                 chart_data = format_bar_chart_data(raw_data, "state", "value", f"State-wise {request.metrics[0].title()}")
-#             elif request.comparison_type == "district":
-#                 chart_data = format_bar_chart_data(raw_data, "district", "value", f"District-wise {request.metrics[0].title()}")
-#             elif request.comparison_type == "yearly":
-#                 chart_data = format_bar_chart_data(raw_data, "year", "value", f"Yearly {request.metrics[0].title()} Trend")
-                
-#         elif request.chart_type == "line":
-#             if request.comparison_type == "yearly":
-#                 chart_data = format_line_chart_data(raw_data, "year", "value", f"Yearly {request.metrics[0].title()} Trend")
-#             else:
-#                 # Convert to line chart format
-#                 x_field = "state" if request.comparison_type == "state" else "district"
-#                 chart_data = format_line_chart_data(raw_data, x_field, "value", title)
-                
-#         elif request.chart_type in ["pie", "doughnut"]:
-#             x_field = "state" if request.comparison_type == "state" else "district" if request.comparison_type == "district" else "year"
-#             chart_data = format_pie_chart_data(raw_data, x_field, "value", title)
-#             if request.chart_type == "doughnut":
-#                 chart_data["type"] = "doughnut"
-                
-#         elif request.chart_type == "radar" and request.comparison_type == "metric":
-#             chart_data = format_multi_metric_data(raw_data, request.metrics, f"Multi-metric Analysis")
-        
-#         processing_time = round(time.time() - start_time, 2)
-        
-#         return DataVisualizationResponse(
-#             chart_type=request.chart_type,
-#             data=chart_data,
-#             metadata={
-#                 "query_used": cypher_query,
-#                 "data_points": len(raw_data),
-#                 "comparison_type": request.comparison_type,
-#                 "parameters": {
-#                     "states": request.states,
-#                     "districts": request.districts,
-#                     "years": request.years,
-#                     "metrics": request.metrics,
-#                     "filters": request.filters
-#                 }
-#             },
-#             processing_time=processing_time,
-#             error=None
-#         )
-        
-#     except Exception as e:
-#         processing_time = round(time.time() - start_time, 2)
-#         return DataVisualizationResponse(
-#             chart_type=request.chart_type,
-#             data={},
-#             metadata={},
-#             processing_time=processing_time,
-#             error=str(e)
-#         )
-
-# @app.get("/visualization/options")
-# async def get_visualization_options():
-#     """Get available options for data visualization"""
-#     return {
-#         "chart_types": VALID_CHART_TYPES,
-#         "comparison_types": ["state", "district", "yearly", "metric"],
-#         "metrics": VALID_METRICS,
-#         "sample_states": ["Kerala", "Karnataka", "Tamil Nadu", "Andhra Pradesh", "Maharashtra", "Gujarat"],
-#         "sample_districts": {
-#             "Kerala": ["Kottayam", "Ernakulam", "Thrissur", "Palakkad", "Kozhikode"],
-#             "Karnataka": ["Bangalore", "Mysore", "Hubli", "Belgaum", "Mangalore"],
-#             "Tamil Nadu": ["Chennai", "Madurai", "Coimbatore", "Trichy", "Salem"]
-#         },
-#         "available_years": [2020, 2021, 2022, 2023, 2024]
-#     }
-
-# @app.get("/")
-# async def root():
-#     return {
-#         "message": "JALMITRA AI ChatBot API v3.0 with Data Visualization is running", 
-#         "status": "healthy",
-#         "features": [
-#             "Role-aware responses (farmer, policymaker, researcher, general)",
-#             "Interactive data visualization with Chart.js",
-#             "State, district, yearly, and multi-metric comparisons",
-#             "Enhanced GraphRAG with Pinecone + Neo4j + Gemini",
-#             "Robust Cypher handling and validation"
-#         ]
-#     }
-
-# @app.get("/health")
-# async def health_check():
-#     return {
-#         "status": "healthy", 
-#         "service": "JALMITRA AI ChatBot v3.0",
-#         "timestamp": time.time()
-#     }
-
-# if __name__ == "__main__":
-#     import uvicorn
-#     print("🚀 Starting Enhanced JALMITRA AI ChatBot API v3.0 with Data Visualization...")
-#     print("🔗 Server will be available at: http://localhost:8000")
-#     print("📚 API docs at: http://localhost:8000/docs")
-#     print("📊 Data visualization endpoint: /visualize")
-#     print("🎯 Visualization options: /visualization/options")
-#     uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# server.py - Fixed Data Visualization with Enhanced Neo4j Queries
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
-from fastapi.middleware.cors import CORSMiddleware
-from graphrag import graphrag_chatbot, run_cypher
-from typing import Optional, List, Dict, Any
-import time
+"""
+Jalmitra Backend — FastAPI server v4.0 (Production)
+GraphRAG-powered groundwater intelligence API
+"""
+
+import os
 import json
+import time
+import logging
+import asyncio
+import uuid
+from datetime import datetime
+from typing import Optional, List, Dict, Any
+from contextlib import asynccontextmanager
 
-# Define enhanced input formats
+from fastapi import FastAPI, HTTPException, Request, Depends
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
+from dotenv import load_dotenv
+from apscheduler.schedulers.background import BackgroundScheduler
+
+from core.graphrag import graphrag_chatbot, run_cypher
+from services import (
+    forecast_service,
+    alerts_service,
+    advisory_service,
+    field_observations_service,
+    reports_service,
+    satellite_service,
+)
+
+load_dotenv()
+
+# ---------- Logging ----------
+logging.basicConfig(
+    level=logging.INFO,
+    format='{"time":"%(asctime)s","level":"%(levelname)s","logger":"%(name)s","message":"%(message)s"}',
+    datefmt="%Y-%m-%dT%H:%M:%S",
+)
+logger = logging.getLogger("jalmitra")
+
+
+# ---------- Rate Limiting (simple in-memory) ----------
+from collections import defaultdict
+_rate_store: Dict[str, List[float]] = defaultdict(list)
+
+def check_rate_limit(ip: str, max_requests: int = 30, window: int = 60) -> bool:
+    now = time.time()
+    _rate_store[ip] = [t for t in _rate_store[ip] if now - t < window]
+    if len(_rate_store[ip]) >= max_requests:
+        return False
+    _rate_store[ip].append(now)
+    return True
+
+async def rate_limit(request: Request):
+    ip = request.client.host if request.client else "unknown"
+    if not check_rate_limit(ip):
+        raise HTTPException(status_code=429, detail="Rate limit exceeded. Max 30 requests/minute.")
+
+
+# ---------- TTL cache (simple in-memory, for map/compare queries) ----------
+_ttl_cache: Dict[str, tuple] = {}
+
+def cache_get(key: str):
+    entry = _ttl_cache.get(key)
+    if not entry:
+        return None
+    value, expires_at = entry
+    if time.time() > expires_at:
+        _ttl_cache.pop(key, None)
+        return None
+    return value
+
+def cache_set(key: str, value, ttl: int = 300):
+    _ttl_cache[key] = (value, time.time() + ttl)
+
+
+# ---------- Scheduled jobs (alerts + data-freshness) ----------
+scheduler = BackgroundScheduler()
+
+def _scheduled_alert_check():
+    try:
+        result = alerts_service.check_thresholds()
+        logger.info(f"scheduled alert check: {result}")
+    except Exception as e:
+        logger.error(f"scheduled alert check failed: {e}")
+
+def _scheduled_ingestion_reminder():
+    # Placeholder for automated ingestion (roadmap 3.4): CGWB/Jal Shakti datasets are published
+    # periodically outside our control, so this job just logs a reminder rather than fabricating
+    # a live feed. Once a real upstream feed/URL is available, replace this with an actual fetch
+    # + insert_data.py / insert_graph.py invocation.
+    logger.info("scheduled ingestion check: no new upstream dataset source configured")
+
+
+# ---------- App ----------
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Jalmitra API starting up")
+    alerts_service.init_db()
+    scheduler.add_job(_scheduled_alert_check, "interval", hours=6, id="alert_check", replace_existing=True)
+    scheduler.add_job(_scheduled_ingestion_reminder, "interval", hours=24, id="ingestion_check", replace_existing=True)
+    scheduler.start()
+    yield
+    scheduler.shutdown(wait=False)
+    logger.info("Jalmitra API shutting down")
+
+app = FastAPI(
+    title="Jalmitra — Groundwater Intelligence API",
+    description=(
+        "AI-powered groundwater data access for India. "
+        "Dual-pipeline RAG: Pinecone semantic search + Neo4j knowledge graph + Gemini LLM."
+    ),
+    version="4.0.0",
+    contact={"name": "Jalmitra Team"},
+    lifespan=lifespan,
+    docs_url="/docs",
+    redoc_url="/redoc",
+)
+
+
+# ---------- CORS ----------
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3001,http://localhost:5173")
+ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# ---------- Request logging middleware ----------
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start = time.time()
+    response = await call_next(request)
+    duration = round(time.time() - start, 3)
+    logger.info(f"{request.method} {request.url.path} {response.status_code} {duration}s")
+    return response
+
+
+# ---------- Pydantic Models ----------
+class ChatHistoryTurn(BaseModel):
+    role: str = Field(..., description="user | assistant")
+    content: str
+
 class ChatRequest(BaseModel):
-    query: str = Field(..., description="User's natural language query")
-    role: str = Field(default="general", description="User role: farmer, policymaker, researcher, or general")
-    debug: bool = Field(default=False, description="Enable debug mode for detailed response info")
-
-class DataVisualizationRequest(BaseModel):
-    chart_type: str = Field(..., description="Type of chart: bar, line, pie, doughnut, radar")
-    comparison_type: str = Field(..., description="Type of comparison: state, district, yearly, metric")
-    states: Optional[List[str]] = Field(default=None, description="List of states to compare")
-    districts: Optional[List[str]] = Field(default=None, description="List of districts to compare")
-    years: Optional[List[int]] = Field(default=None, description="List of years to compare")
-    metrics: Optional[List[str]] = Field(default=None, description="List of metrics to visualize")
-    filters: Optional[Dict[str, Any]] = Field(default=None, description="Additional filters")
+    query: str = Field(..., min_length=1, max_length=500, description="Natural language query")
+    role: str = Field(default="general", description="farmer | policymaker | researcher | general")
+    debug: bool = Field(default=False)
+    history: Optional[List[ChatHistoryTurn]] = Field(default=None, description="Last 5 conversation turns for context")
 
 class ChatResponse(BaseModel):
     query: str
     role: str
     final_answer: str
     processing_time: float
-    cypher_used: Optional[str]
+    cypher_used: Optional[str] = None
     semantic_results_count: int
     graph_results_count: int
     interpretation_applied: bool
-    error: Optional[str]
-    debug_info: Optional[dict]
+    error: Optional[str] = None
+    debug_info: Optional[dict] = None
+    sources: Optional[List[dict]] = None
+    chart: Optional[Dict[str, Any]] = None
+
+class DataVisualizationRequest(BaseModel):
+    chart_type: str = Field(..., description="bar | line | pie | doughnut | radar")
+    comparison_type: str = Field(..., description="state | district | yearly | metric")
+    states: Optional[List[str]] = None
+    districts: Optional[List[str]] = None
+    years: Optional[List[int]] = None
+    metrics: Optional[List[str]] = None
+    filters: Optional[Dict[str, Any]] = None
 
 class DataVisualizationResponse(BaseModel):
     chart_type: str
     data: Optional[Dict[str, Any]] = None
     metadata: Dict[str, Any]
     processing_time: float
-    error: Optional[str]
+    error: Optional[str] = None
 
-# Initialize app
-app = FastAPI(
-    title="JALMITRA AI ChatBot API",
-    description="Enhanced GraphRAG chatbot with data visualization for groundwater analysis",
-    version="3.1.0"
-)
+class FeedbackRequest(BaseModel):
+    query: str
+    answer: str
+    rating: int = Field(..., ge=1, le=5)
+    comment: Optional[str] = None
 
-# CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+class ExportRequest(BaseModel):
+    comparison_type: str
+    metrics: List[str]
+    states: Optional[List[str]] = None
+    districts: Optional[List[str]] = None
+    years: Optional[List[int]] = None
+    filters: Optional[Dict[str, Any]] = None
 
-# Constants
+
+# ---------- Constants ----------
 VALID_ROLES = ["farmer", "policymaker", "researcher", "general"]
 VALID_METRICS = ["rainfall", "recharge", "draft", "availability", "groundwater"]
+VALID_YEARS = [2023, 2024]
 
-# Enhanced chart type validation with restricted combinations
 CHART_TYPE_RESTRICTIONS = {
-    "radar": ["metric"],  # Radar charts only work with multi-metric comparisons
-    "pie": ["state", "district"],  # Pie charts work best with categorical comparisons
-    "doughnut": ["state", "district"],  # Same as pie charts
+    "radar": ["metric"],
+    "pie": ["state", "district"],
+    "doughnut": ["state", "district"],
 }
 
-def validate_chart_comparison_combo(chart_type: str, comparison_type: str) -> bool:
-    """Validate if chart type is compatible with comparison type"""
-    if chart_type in CHART_TYPE_RESTRICTIONS:
-        return comparison_type in CHART_TYPE_RESTRICTIONS[chart_type]
-    return True
+METRIC_META = {
+    "rainfall":    {"label": "Rainfall",              "unit": "mm",  "rel": "RAINFALL",    "node": "Rainfall",              "prop": "total"},
+    "recharge":    {"label": "Groundwater Recharge",  "unit": "ham", "rel": "RECHARGE",    "node": "Recharge",              "prop": "total"},
+    "draft":       {"label": "Groundwater Draft",     "unit": "ham", "rel": "DRAFT",       "node": "Draft",                 "prop": "total"},
+    "availability":{"label": "Water Availability",    "unit": "ham", "rel": "AVAILABILITY","node": "Availability",          "prop": "total"},
+    "groundwater": {"label": "Groundwater Resources", "unit": "ham", "rel": "GROUND_WATER","node": "GroundWaterAvailability","prop": "total"},
+}
 
-# Enhanced Neo4j query generators with better error handling
-def generate_state_comparison_query(states: List[str], metric: str, year: int = 2024):
-    """Generate Cypher query for state-wise comparison with better node matching"""
-    states_str = '", "'.join([s.upper() for s in states])
-    
-    metric_mapping = {
-        "rainfall": ("RAINFALL", "Rainfall", "total"),
-        "recharge": ("RECHARGE", "Recharge", "total"), 
-        "draft": ("DRAFT", "Draft", "total"),
-        "availability": ("AVAILABILITY", "Availability", "total"),
-        "groundwater": ("GROUND_WATER", "GroundWaterAvailability", "total")
-    }
+STATE_CENTROIDS = {
+    "ANDHRA PRADESH":         {"lat": 15.91, "lng": 79.74},
+    "ARUNACHAL PRADESH":      {"lat": 28.22, "lng": 94.73},
+    "ASSAM":                  {"lat": 26.20, "lng": 92.94},
+    "BIHAR":                  {"lat": 25.10, "lng": 85.31},
+    "CHHATTISGARH":           {"lat": 21.28, "lng": 81.87},
+    "GOA":                    {"lat": 15.30, "lng": 74.12},
+    "GUJARAT":                {"lat": 22.26, "lng": 71.19},
+    "HARYANA":                {"lat": 29.06, "lng": 76.09},
+    "HIMACHAL PRADESH":       {"lat": 31.10, "lng": 77.17},
+    "JHARKHAND":              {"lat": 23.61, "lng": 85.28},
+    "KARNATAKA":              {"lat": 15.32, "lng": 75.71},
+    "KERALA":                 {"lat": 10.85, "lng": 76.27},
+    "MADHYA PRADESH":         {"lat": 22.97, "lng": 78.66},
+    "MAHARASHTRA":            {"lat": 19.75, "lng": 75.71},
+    "MANIPUR":                {"lat": 24.66, "lng": 93.91},
+    "MEGHALAYA":              {"lat": 25.47, "lng": 91.37},
+    "MIZORAM":                {"lat": 23.16, "lng": 92.94},
+    "NAGALAND":               {"lat": 26.16, "lng": 94.56},
+    "ODISHA":                 {"lat": 20.95, "lng": 85.10},
+    "PUNJAB":                 {"lat": 31.15, "lng": 75.34},
+    "RAJASTHAN":              {"lat": 27.02, "lng": 74.22},
+    "SIKKIM":                 {"lat": 27.53, "lng": 88.51},
+    "TAMILNADU":              {"lat": 11.13, "lng": 78.66},
+    "TELANGANA":              {"lat": 18.11, "lng": 79.02},
+    "TRIPURA":                {"lat": 23.94, "lng": 91.99},
+    "UTTAR PRADESH":          {"lat": 26.85, "lng": 80.95},
+    "UTTARAKHAND":            {"lat": 30.07, "lng": 79.02},
+    "WEST BENGAL":            {"lat": 22.99, "lng": 87.85},
+    "DELHI":                  {"lat": 28.70, "lng": 77.10},
+    "JAMMU AND KASHMIR":      {"lat": 33.73, "lng": 76.92},
+    "LADAKH":                 {"lat": 34.17, "lng": 77.58},
+}
 
-    if metric not in metric_mapping:
+
+# ---------- Cypher Query Generators ----------
+def _metric_parts(metric: str):
+    m = METRIC_META.get(metric)
+    if not m:
         return None
-        
-    rel_type, node_type, property_name = metric_mapping[metric]
+    return m["rel"], m["node"], m["prop"]
 
-    return f'''
-    MATCH (c:Country {{name:"INDIA"}})-[:HAS_STATE]->(s:State)-[:HAS_YEAR]->(y:Year {{year:{year}}})-[:HAS_{rel_type}]->(n:{node_type})
-    WHERE s.name IN ["{states_str}"] AND n.{property_name} IS NOT NULL
-    RETURN s.name AS entity, n.{property_name} AS value
-    ORDER BY s.name
-    '''
-
-def generate_district_comparison_query(state: str, districts: List[str], metric: str, year: int = 2024):
-    """Generate Cypher query for district-wise comparison"""
-    districts_str = '", "'.join([d.upper() for d in districts])
-    
-    metric_mapping = {
-        "rainfall": ("RAINFALL", "Rainfall", "total"),
-        "recharge": ("RECHARGE", "Recharge", "total"),
-        "draft": ("DRAFT", "Draft", "total"),
-        "availability": ("AVAILABILITY", "Availability", "total"),
-        "groundwater": ("GROUND_WATER", "GroundWaterAvailability", "total")
-    }
-
-    if metric not in metric_mapping:
+def generate_state_comparison_query(states: List[str], metric: str, year: int = 2024) -> Optional[str]:
+    parts = _metric_parts(metric)
+    if not parts:
         return None
-        
-    rel_type, node_type, property_name = metric_mapping[metric]
+    rel_type, node_type, prop = parts
+    states_str = '", "'.join(s.upper() for s in states)
+    return (
+        f'MATCH (c:Country {{name:"India"}})-[:HAS_STATE]->(s:State)-[:HAS_YEAR]->(y:Year {{year:{year}}})'
+        f'-[:HAS_{rel_type}]->(n:{node_type}) '
+        f'WHERE s.name IN ["{states_str}"] AND n.{prop} IS NOT NULL '
+        f'RETURN s.name AS entity, n.{prop} AS value ORDER BY s.name'
+    )
 
-    return f'''
-    MATCH (c:Country {{name:"INDIA"}})-[:HAS_STATE]->(s:State {{name:"{state.upper()}"}})-[:HAS_DISTRICT]->(d:District)-[:HAS_YEAR]->(y:Year {{year:{year}}})-[:HAS_{rel_type}]->(n:{node_type})
-    WHERE d.name IN ["{districts_str}"] AND n.{property_name} IS NOT NULL
-    RETURN d.name AS entity, n.{property_name} AS value
-    ORDER BY d.name
-    '''
-
-def generate_yearly_trend_query(entity: str, entity_type: str, metric: str, years: List[int]):
-    """Generate Cypher query for yearly trend analysis"""
-    years_str = ', '.join(map(str, years))
-    
-    metric_mapping = {
-        "rainfall": ("RAINFALL", "Rainfall", "total"),
-        "recharge": ("RECHARGE", "Recharge", "total"),
-        "draft": ("DRAFT", "Draft", "total"),
-        "availability": ("AVAILABILITY", "Availability", "total"),
-        "groundwater": ("GROUND_WATER", "GroundWaterAvailability", "total")
-    }
-
-    if metric not in metric_mapping:
+def generate_district_comparison_query(state: str, districts: List[str], metric: str, year: int = 2024) -> Optional[str]:
+    parts = _metric_parts(metric)
+    if not parts:
         return None
-        
-    rel_type, node_type, property_name = metric_mapping[metric]
+    rel_type, node_type, prop = parts
+    districts_str = '", "'.join(d.upper() for d in districts)
+    return (
+        f'MATCH (c:Country {{name:"India"}})-[:HAS_STATE]->(s:State {{name:"{state.upper()}"}})'
+        f'-[:HAS_DISTRICT]->(d:District)-[:HAS_YEAR]->(y:Year {{year:{year}}})'
+        f'-[:HAS_{rel_type}]->(n:{node_type}) '
+        f'WHERE d.name IN ["{districts_str}"] AND n.{prop} IS NOT NULL '
+        f'RETURN d.name AS entity, n.{prop} AS value ORDER BY d.name'
+    )
 
+def generate_yearly_trend_query(entity: str, entity_type: str, metric: str, years: List[int]) -> Optional[str]:
+    parts = _metric_parts(metric)
+    if not parts:
+        return None
+    rel_type, node_type, prop = parts
+    years_str = ", ".join(map(str, years))
     if entity_type == "state":
-        return f'''
-        MATCH (c:Country {{name:"INDIA"}})-[:HAS_STATE]->(s:State {{name:"{entity.upper()}"}})-[:HAS_YEAR]->(y:Year)-[:HAS_{rel_type}]->(n:{node_type})
-        WHERE y.year IN [{years_str}] AND n.{property_name} IS NOT NULL
-        RETURN y.year AS entity, n.{property_name} AS value
-        ORDER BY y.year
-        '''
-    else:  # district
-        # For district, assume Kerala as default state since only Kerala districts are loaded
-        return f'''
-        MATCH (c:Country {{name:"INDIA"}})-[:HAS_STATE]->(s:State {{name:"KERALA"}})-[:HAS_DISTRICT]->(d:District {{name:"{entity.upper()}"}})-[:HAS_YEAR]->(y:Year)-[:HAS_{rel_type}]->(n:{node_type})
-        WHERE y.year IN [{years_str}] AND n.{property_name} IS NOT NULL
-        RETURN y.year AS entity, n.{property_name} AS value
-        ORDER BY y.year
-        '''
+        return (
+            f'MATCH (c:Country {{name:"India"}})-[:HAS_STATE]->(s:State {{name:"{entity.upper()}"}})'
+            f'-[:HAS_YEAR]->(y:Year)-[:HAS_{rel_type}]->(n:{node_type}) '
+            f'WHERE y.year IN [{years_str}] AND n.{prop} IS NOT NULL '
+            f'RETURN y.year AS entity, n.{prop} AS value ORDER BY y.year'
+        )
+    return (
+        f'MATCH (c:Country {{name:"India"}})-[:HAS_STATE]->(s:State {{name:"KERALA"}})'
+        f'-[:HAS_DISTRICT]->(d:District {{name:"{entity.upper()}"}})'
+        f'-[:HAS_YEAR]->(y:Year)-[:HAS_{rel_type}]->(n:{node_type}) '
+        f'WHERE y.year IN [{years_str}] AND n.{prop} IS NOT NULL '
+        f'RETURN y.year AS entity, n.{prop} AS value ORDER BY y.year'
+    )
 
-def generate_multi_metric_query(entity: str, entity_type: str, metrics: List[str], year: int = 2024):
-    """Generate Cypher query for multi-metric comparison"""
-    
+def generate_multi_metric_query(entity: str, entity_type: str, metrics: List[str], year: int = 2024) -> Optional[str]:
     if entity_type == "state":
-        base_match = f'MATCH (c:Country {{name:"INDIA"}})-[:HAS_STATE]->(s:State {{name:"{entity.upper()}"}})-[:HAS_YEAR]->(y:Year {{year:{year}}})'
+        base = f'MATCH (c:Country {{name:"India"}})-[:HAS_STATE]->(s:State {{name:"{entity.upper()}"}})-[:HAS_YEAR]->(y:Year {{year:{year}}})'
     else:
-        # For districts, use Kerala as the state
-        base_match = f'MATCH (c:Country {{name:"INDIA"}})-[:HAS_STATE]->(s:State {{name:"KERALA"}})-[:HAS_DISTRICT]->(d:District {{name:"{entity.upper()}"}})-[:HAS_YEAR]->(y:Year {{year:{year}}})'
-    
-    metric_mapping = {
-        "rainfall": ("RAINFALL", "Rainfall", "r", "rainfall"),
-        "recharge": ("RECHARGE", "Recharge", "rec", "recharge"),
-        "draft": ("DRAFT", "Draft", "dr", "draft"),
-        "availability": ("AVAILABILITY", "Availability", "av", "availability"),
-        "groundwater": ("GROUND_WATER", "GroundWaterAvailability", "gw", "groundwater")
-    }
-    
-    metric_clauses = []
-    return_clauses = []
-    
-    for metric in metrics:
-        if metric in metric_mapping:
-            rel_type, node_type, alias, return_name = metric_mapping[metric]
-            metric_clauses.append(f'OPTIONAL MATCH (y)-[:HAS_{rel_type}]->({alias}:{node_type})')
-            return_clauses.append(f'{alias}.total AS {return_name}')
-    
-    if not return_clauses:
-        return None
-    
-    query = f'''
-    {base_match}
-    {' '.join(metric_clauses)}
-    RETURN {', '.join(return_clauses)}
-    '''
-    
-    return query
-
-# Enhanced Chart.js data formatters
-def format_bar_chart_data(data: List[Dict], title: str):
-    """Format data for bar chart"""
-    if not data:
-        return None
-        
-    return {
-        "type": "bar",
-        "data": {
-            "labels": [str(item.get('entity', 'Unknown')) for item in data],
-            "datasets": [{
-                "label": title,
-                "data": [float(item.get('value', 0)) if item.get('value') is not None else 0 for item in data],
-                "backgroundColor": [
-                    "rgba(59, 130, 246, 0.8)",
-                    "rgba(16, 185, 129, 0.8)",
-                    "rgba(245, 158, 11, 0.8)",
-                    "rgba(239, 68, 68, 0.8)",
-                    "rgba(139, 92, 246, 0.8)",
-                    "rgba(236, 72, 153, 0.8)",
-                    "rgba(6, 182, 212, 0.8)",
-                    "rgba(251, 113, 133, 0.8)"
-                ],
-                "borderColor": [
-                    "rgba(59, 130, 246, 1)",
-                    "rgba(16, 185, 129, 1)",
-                    "rgba(245, 158, 11, 1)",
-                    "rgba(239, 68, 68, 1)",
-                    "rgba(139, 92, 246, 1)",
-                    "rgba(236, 72, 153, 1)",
-                    "rgba(6, 182, 212, 1)",
-                    "rgba(251, 113, 133, 1)"
-                ],
-                "borderWidth": 2,
-                "borderRadius": 8,
-                "borderSkipped": False
-            }]
-        },
-        "options": {
-            "responsive": True,
-            "maintainAspectRatio": False,
-            "plugins": {
-                "title": {
-                    "display": True,
-                    "text": title,
-                    "font": {"size": 18, "weight": "bold"}
-                },
-                "legend": {
-                    "display": False
-                }
-            },
-            "scales": {
-                "y": {
-                    "beginAtZero": True,
-                    "grid": {"color": "rgba(0, 0, 0, 0.1)"},
-                    "ticks": {"font": {"size": 12}}
-                },
-                "x": {
-                    "grid": {"display": False},
-                    "ticks": {"font": {"size": 12}}
-                }
-            }
-        }
-    }
-
-def format_line_chart_data(data: List[Dict], title: str):
-    """Format data for line chart"""
-    if not data:
-        return None
-        
-    return {
-        "type": "line",
-        "data": {
-            "labels": [str(item.get('entity', 'Unknown')) for item in data],
-            "datasets": [{
-                "label": title,
-                "data": [float(item.get('value', 0)) if item.get('value') is not None else 0 for item in data],
-                "borderColor": "rgba(59, 130, 246, 1)",
-                "backgroundColor": "rgba(59, 130, 246, 0.1)",
-                "borderWidth": 3,
-                "fill": True,
-                "tension": 0.4,
-                "pointBackgroundColor": "rgba(59, 130, 246, 1)",
-                "pointBorderColor": "#ffffff",
-                "pointBorderWidth": 2,
-                "pointRadius": 6,
-                "pointHoverRadius": 8
-            }]
-        },
-        "options": {
-            "responsive": True,
-            "maintainAspectRatio": False,
-            "plugins": {
-                "title": {
-                    "display": True,
-                    "text": title,
-                    "font": {"size": 18, "weight": "bold"}
-                }
-            },
-            "scales": {
-                "y": {
-                    "beginAtZero": True,
-                    "grid": {"color": "rgba(0, 0, 0, 0.1)"}
-                },
-                "x": {
-                    "grid": {"color": "rgba(0, 0, 0, 0.1)"}
-                }
-            }
-        }
-    }
-
-def format_pie_chart_data(data: List[Dict], title: str):
-    """Format data for pie chart"""
-    if not data:
-        return None
-        
-    return {
-        "type": "pie",
-        "data": {
-            "labels": [str(item.get('entity', 'Unknown')) for item in data],
-            "datasets": [{
-                "data": [float(item.get('value', 0)) if item.get('value') is not None else 0 for item in data],
-                "backgroundColor": [
-                    "rgba(59, 130, 246, 0.8)",
-                    "rgba(16, 185, 129, 0.8)",
-                    "rgba(245, 158, 11, 0.8)",
-                    "rgba(239, 68, 68, 0.8)",
-                    "rgba(139, 92, 246, 0.8)",
-                    "rgba(236, 72, 153, 0.8)",
-                    "rgba(6, 182, 212, 0.8)",
-                    "rgba(251, 113, 133, 0.8)"
-                ],
-                "borderColor": "#ffffff",
-                "borderWidth": 3,
-                "hoverBorderWidth": 4
-            }]
-        },
-        "options": {
-            "responsive": True,
-            "maintainAspectRatio": False,
-            "plugins": {
-                "title": {
-                    "display": True,
-                    "text": title,
-                    "font": {"size": 18, "weight": "bold"}
-                },
-                "legend": {
-                    "position": "right",
-                    "labels": {"font": {"size": 12}}
-                }
-            }
-        }
-    }
-
-def format_multi_metric_data(data: List[Dict], metrics: List[str], title: str):
-    """Format data for multi-metric radar chart"""
-    if not data or not data[0]:
-        return None
-    
-    record = data[0]
-    metric_values = []
-    valid_metrics = []
-    
-    for metric in metrics:
-        value = record.get(metric)
-        if value is not None:
-            metric_values.append(float(value))
-            valid_metrics.append(metric.title())
-        else:
-            metric_values.append(0)
-            valid_metrics.append(metric.title())
-    
-    return {
-        "type": "radar",
-        "data": {
-            "labels": valid_metrics,
-            "datasets": [{
-                "label": title,
-                "data": metric_values,
-                "backgroundColor": "rgba(59, 130, 246, 0.2)",
-                "borderColor": "rgba(59, 130, 246, 1)",
-                "borderWidth": 3,
-                "pointBackgroundColor": "rgba(59, 130, 246, 1)",
-                "pointBorderColor": "#ffffff",
-                "pointBorderWidth": 2,
-                "pointRadius": 6
-            }]
-        },
-        "options": {
-            "responsive": True,
-            "maintainAspectRatio": False,
-            "plugins": {
-                "title": {
-                    "display": True,
-                    "text": title,
-                    "font": {"size": 18, "weight": "bold"}
-                }
-            },
-            "scales": {
-                "r": {
-                    "beginAtZero": True,
-                    "grid": {"color": "rgba(0, 0, 0, 0.1)"},
-                    "pointLabels": {"font": {"size": 12}}
-                }
-            }
-        }
-    }
-
-# API Endpoints
-@app.post("/chat", response_model=ChatResponse)
-async def chat_endpoint(request: ChatRequest):
-    """Enhanced chat endpoint with role-aware responses"""
-    if request.role.lower() not in VALID_ROLES:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Invalid role. Must be one of: {', '.join(VALID_ROLES)}"
+        base = (
+            f'MATCH (c:Country {{name:"India"}})-[:HAS_STATE]->(s:State {{name:"KERALA"}})'
+            f'-[:HAS_DISTRICT]->(d:District {{name:"{entity.upper()}"}})-[:HAS_YEAR]->(y:Year {{year:{year}}})'
         )
-    
+    clauses, returns = [], []
+    aliases = {"rainfall": "r", "recharge": "rec", "draft": "dr", "availability": "av", "groundwater": "gw"}
+    for m in metrics:
+        parts = _metric_parts(m)
+        if parts:
+            rel_type, node_type, _ = parts
+            alias = aliases.get(m, m[:3])
+            clauses.append(f'OPTIONAL MATCH (y)-[:HAS_{rel_type}]->({alias}:{node_type})')
+            returns.append(f'{alias}.total AS {m}')
+    if not returns:
+        return None
+    return f'{base} {" ".join(clauses)} RETURN {", ".join(returns)}'
+
+
+# ---------- Chart Formatters ----------
+_COLORS_BG = [
+    "rgba(59,130,246,0.8)", "rgba(16,185,129,0.8)", "rgba(245,158,11,0.8)",
+    "rgba(239,68,68,0.8)",  "rgba(139,92,246,0.8)", "rgba(236,72,153,0.8)",
+    "rgba(6,182,212,0.8)",  "rgba(251,113,133,0.8)",
+]
+_COLORS_BD = [c.replace("0.8", "1") for c in _COLORS_BG]
+
+def _labels(data): return [str(r.get("entity", "?")) for r in data]
+def _values(data): return [float(r.get("value", 0) or 0) for r in data]
+
+def fmt_bar(data, title):
+    return {"type": "bar", "data": {"labels": _labels(data), "datasets": [{"label": title, "data": _values(data), "backgroundColor": _COLORS_BG, "borderColor": _COLORS_BD, "borderWidth": 2, "borderRadius": 8, "borderSkipped": False}]}, "options": {"responsive": True, "maintainAspectRatio": False, "plugins": {"title": {"display": True, "text": title, "font": {"size": 18, "weight": "bold"}}, "legend": {"display": False}}, "scales": {"y": {"beginAtZero": True}, "x": {"grid": {"display": False}}}}}
+
+def fmt_line(data, title):
+    return {"type": "line", "data": {"labels": _labels(data), "datasets": [{"label": title, "data": _values(data), "borderColor": "rgba(59,130,246,1)", "backgroundColor": "rgba(59,130,246,0.1)", "borderWidth": 3, "fill": True, "tension": 0.4, "pointRadius": 6, "pointHoverRadius": 8}]}, "options": {"responsive": True, "maintainAspectRatio": False, "plugins": {"title": {"display": True, "text": title, "font": {"size": 18, "weight": "bold"}}}, "scales": {"y": {"beginAtZero": True}}}}
+
+def fmt_pie(data, title):
+    return {"type": "pie", "data": {"labels": _labels(data), "datasets": [{"data": _values(data), "backgroundColor": _COLORS_BG, "borderColor": "#fff", "borderWidth": 3, "hoverBorderWidth": 4}]}, "options": {"responsive": True, "maintainAspectRatio": False, "plugins": {"title": {"display": True, "text": title, "font": {"size": 18, "weight": "bold"}}, "legend": {"position": "right"}}}}
+
+def fmt_radar(data, metrics, title):
+    if not data:
+        return None
+    rec = data[0]
+    vals = [float(rec.get(m, 0) or 0) for m in metrics]
+    return {"type": "radar", "data": {"labels": [m.title() for m in metrics], "datasets": [{"label": title, "data": vals, "backgroundColor": "rgba(59,130,246,0.2)", "borderColor": "rgba(59,130,246,1)", "borderWidth": 3, "pointRadius": 6}]}, "options": {"responsive": True, "maintainAspectRatio": False, "plugins": {"title": {"display": True, "text": title, "font": {"size": 18, "weight": "bold"}}}, "scales": {"r": {"beginAtZero": True}}}}
+
+
+# ---------- Helpers ----------
+def _valid_year(y): return y if y in VALID_YEARS else VALID_YEARS[-1]
+
+
+def maybe_build_chat_chart(graph_results: List[Dict[str, Any]], query: str) -> Optional[Dict[str, Any]]:
+    """Chart-in-chat (roadmap 3.1): when the Cypher result looks like a trend
+    (a 'year'-keyed series with 2+ rows), render it as a small inline line chart
+    instead of asking the user to go to Compare for the same numbers."""
+    if not graph_results or len(graph_results) < 2:
+        return None
+    sample = graph_results[0]
+    year_key = next((k for k in sample.keys() if k.lower() in ("year", "entity")), None)
+    value_key = next((k for k in sample.keys() if k != year_key and isinstance(sample.get(k), (int, float))), None)
+    if not year_key or not value_key:
+        return None
+    rows = [{"entity": r.get(year_key), "value": r.get(value_key)} for r in graph_results if r.get(value_key) is not None]
+    if len(rows) < 2:
+        return None
+    return fmt_line(rows, value_key.replace("_", " ").title())
+
+
+# ---------- Routes ----------
+
+@app.get("/", tags=["Info"])
+async def root():
+    return {
+        "name": "Jalmitra Groundwater Intelligence API",
+        "version": "4.0.0",
+        "status": "healthy",
+        "docs": "/docs",
+    }
+
+@app.get("/health", tags=["Info"])
+async def health():
+    from core.graphrag import driver, pine_index
+    neo4j_ok, pinecone_ok = False, False
     try:
-        result = graphrag_chatbot(
-            request.query, 
-            role=request.role.lower(), 
-            debug_mode=request.debug
-        )
-        
+        with driver.session() as s:
+            s.run("RETURN 1")
+        neo4j_ok = True
+    except Exception:
+        pass
+    try:
+        pine_index.describe_index_stats()
+        pinecone_ok = True
+    except Exception:
+        pass
+    return {
+        "status": "healthy" if (neo4j_ok and pinecone_ok) else "degraded",
+        "services": {"neo4j": "up" if neo4j_ok else "down", "pinecone": "up" if pinecone_ok else "down"},
+        "data_availability": {"years": VALID_YEARS, "districts": "Kerala only"},
+        "timestamp": time.time(),
+    }
+
+
+@app.post("/chat", response_model=ChatResponse, tags=["Chat"],
+          dependencies=[Depends(rate_limit)])
+async def chat_endpoint(request: ChatRequest):
+    if request.role.lower() not in VALID_ROLES:
+        raise HTTPException(400, f"Invalid role. Use: {', '.join(VALID_ROLES)}")
+    logger.info(f"chat query role={request.role} query_len={len(request.query)}")
+    try:
+        history_dicts = None
+        if request.history:
+            history_dicts = [{"role": h.role, "content": h.content} for h in request.history[-5:]]
+        result = graphrag_chatbot(request.query, role=request.role.lower(), debug_mode=request.debug, history=history_dicts)
         debug_info = None
         if request.debug:
             debug_info = {
-                "semantic_results": result.get("semantic_results", []),
-                "graph_results": result.get("graph_results", []),
                 "cypher_query": result.get("cypher_used"),
-                "processing_details": {
-                    "role_applied": result.get("role"),
-                    "interpretation_applied": result.get("interpretation_applied", False)
-                }
+                "semantic_count": len(result.get("semantic_results", [])),
+                "graph_count": len(result.get("graph_results", [])),
             }
-        
         return ChatResponse(
             query=result["query"],
             role=result["role"],
@@ -1339,242 +441,492 @@ async def chat_endpoint(request: ChatRequest):
             graph_results_count=len(result.get("graph_results", [])),
             interpretation_applied=result.get("interpretation_applied", False),
             error=result.get("error"),
-            debug_info=debug_info
+            debug_info=debug_info,
+            sources=result.get("sources"),
+            chart=maybe_build_chat_chart(result.get("graph_results", []), request.query),
         )
-    
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        logger.error(f"chat error: {e}")
+        raise HTTPException(500, f"Internal error: {str(e)}")
 
-@app.post("/visualize", response_model=DataVisualizationResponse)
-async def data_visualization_endpoint(request: DataVisualizationRequest):
-    """Enhanced data visualization endpoint with proper error handling"""
-    start_time = time.time()
-    
-    try:
-        # Validate chart type and comparison type combination
-        if not validate_chart_comparison_combo(request.chart_type, request.comparison_type):
-            valid_types = CHART_TYPE_RESTRICTIONS.get(request.chart_type, [])
-            raise HTTPException(
-                status_code=400,
-                detail=f"Chart type '{request.chart_type}' is only compatible with: {', '.join(valid_types)}"
-            )
-        
-        # Validate required parameters
-        if not request.metrics or len(request.metrics) == 0:
-            raise HTTPException(status_code=400, detail="At least one metric must be selected")
-        
-        # Generate appropriate query based on comparison type
-        cypher_query = None
-        
-        if request.comparison_type == "state" and request.states:
-            metric = request.metrics[0]
-            year = request.filters.get("year", 2024) if request.filters else 2024
-            # Ensure only years 2023-2024 are used
-            if year not in [2023, 2024]:
-                year = 2024
-            cypher_query = generate_state_comparison_query(request.states, metric, year)
-            
-        elif request.comparison_type == "district" and request.districts:
-            metric = request.metrics[0]
-            year = request.filters.get("year", 2024) if request.filters else 2024
-            # Ensure only years 2023-2024 are used
-            if year not in [2023, 2024]:
-                year = 2024
-            cypher_query = generate_district_comparison_query("Kerala", request.districts, metric, year)
-            
-        elif request.comparison_type == "yearly" and request.years:
-            entity = request.filters.get("entity", "Kerala") if request.filters else "Kerala"
-            entity_type = request.filters.get("entity_type", "state") if request.filters else "state"
-            metric = request.metrics[0]
-            # Filter years to only 2023-2024
-            valid_years = [y for y in request.years if y in [2023, 2024]]
-            if not valid_years:
-                valid_years = [2023, 2024]
-            cypher_query = generate_yearly_trend_query(entity, entity_type, metric, valid_years)
-            
-        elif request.comparison_type == "metric" and request.metrics:
-            entity = request.filters.get("entity", "Kerala") if request.filters else "Kerala"
-            entity_type = request.filters.get("entity_type", "state") if request.filters else "state"
-            year = request.filters.get("year", 2024) if request.filters else 2024
-            # Ensure only years 2023-2024 are used
-            if year not in [2023, 2024]:
-                year = 2024
-            cypher_query = generate_multi_metric_query(entity, entity_type, request.metrics, year)
-        
-        if not cypher_query:
-            raise HTTPException(status_code=400, detail="Could not generate appropriate query for the given parameters")
-        
-        # Execute query
-        raw_data = run_cypher(cypher_query)
-        
-        if not raw_data:
-            processing_time = round(time.time() - start_time, 2)
-            return DataVisualizationResponse(
-                chart_type=request.chart_type,
-                data=None,
-                metadata={
-                    "query_used": cypher_query,
-                    "data_points": 0,
-                    "comparison_type": request.comparison_type,
-                    "parameters": {
-                        "states": request.states,
-                        "districts": request.districts, 
-                        "years": request.years,
-                        "metrics": request.metrics,
-                        "filters": request.filters
-                    }
-                },
-                processing_time=processing_time,
-                error="No data found for the specified parameters. Please check if data exists for the selected entities and time period."
-            )
-        
-        # Format data based on chart type
-        chart_data = None
-        title = f"{request.metrics[0].title()} Analysis"
-        
-        if request.comparison_type == "state":
-            title = f"State-wise {request.metrics[0].title()}"
-        elif request.comparison_type == "district":
-            title = f"District-wise {request.metrics[0].title()}"
-        elif request.comparison_type == "yearly":
-            title = f"Yearly {request.metrics[0].title()} Trend"
-        elif request.comparison_type == "metric":
-            title = f"Multi-metric Analysis"
-        
-        if request.chart_type == "bar":
-            chart_data = format_bar_chart_data(raw_data, title)
-        elif request.chart_type == "line":
-            chart_data = format_line_chart_data(raw_data, title)
-        elif request.chart_type in ["pie", "doughnut"]:
-            chart_data = format_pie_chart_data(raw_data, title)
-            if request.chart_type == "doughnut" and chart_data:
-                chart_data["type"] = "doughnut"
-        elif request.chart_type == "radar" and request.comparison_type == "metric":
-            chart_data = format_multi_metric_data(raw_data, request.metrics, title)
-        
-        processing_time = round(time.time() - start_time, 2)
-        
-        return DataVisualizationResponse(
-            chart_type=request.chart_type,
-            data=chart_data,
-            metadata={
-                "query_used": cypher_query,
-                "data_points": len(raw_data),
-                "comparison_type": request.comparison_type,
-                "parameters": {
-                    "states": request.states,
-                    "districts": request.districts,
-                    "years": request.years,
-                    "metrics": request.metrics,
-                    "filters": request.filters
-                }
-            },
-            processing_time=processing_time,
-            error=None
-        )
-        
-    except HTTPException as he:
-        # Re-raise HTTP exceptions
-        raise he
-    except Exception as e:
-        processing_time = round(time.time() - start_time, 2)
-        return DataVisualizationResponse(
-            chart_type=request.chart_type,
-            data=None,
-            metadata={},
-            processing_time=processing_time,
-            error=f"Error generating visualization: {str(e)}"
-        )
 
-@app.get("/visualization/options")
-async def get_visualization_options():
-    """Get available options for data visualization"""
-    
-    # Get available states from Neo4j
-    states_query = """
-    MATCH (c:Country {name:"INDIA"})-[:HAS_STATE]->(s:State)
-    RETURN DISTINCT s.name AS state_name
-    ORDER BY s.name
-    """
-    
-    # Get available districts (Kerala only)
-    districts_query = """
-    MATCH (s:State {name:"KERALA"})-[:HAS_DISTRICT]->(d:District)
-    RETURN DISTINCT d.name AS district_name
-    ORDER BY d.name
-    """
-    
+@app.post("/chat/stream", tags=["Chat"], dependencies=[Depends(rate_limit)])
+async def chat_stream(request: ChatRequest):
+    """SSE endpoint — streams the answer token by token via Server-Sent Events."""
+    if request.role.lower() not in VALID_ROLES:
+        raise HTTPException(400, f"Invalid role. Use: {', '.join(VALID_ROLES)}")
+
+    async def generate():
+        try:
+            history_dicts = None
+            if request.history:
+                history_dicts = [{"role": h.role, "content": h.content} for h in request.history[-5:]]
+            result = await asyncio.to_thread(
+                graphrag_chatbot, request.query, request.role.lower(), request.debug, history_dicts
+            )
+            answer = result.get("final_answer", "")
+            words = answer.split()
+            for i, word in enumerate(words):
+                chunk = word + (" " if i < len(words) - 1 else "")
+                yield f"data: {json.dumps({'token': chunk})}\n\n"
+                await asyncio.sleep(0.02)
+            meta = {
+                "done": True,
+                "processing_time": result.get("processing_time", 0),
+                "cypher_used": result.get("cypher_used"),
+                "sources": result.get("sources"),
+                "chart": maybe_build_chat_chart(result.get("graph_results", []), request.query),
+            }
+            yield f"data: {json.dumps(meta)}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e), 'done': True})}\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@app.post("/visualize", response_model=DataVisualizationResponse, tags=["Visualization"])
+async def visualize(request: DataVisualizationRequest):
+    start = time.time()
+    cache_key = f"visualize:{request.model_dump_json()}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
+    if request.chart_type in CHART_TYPE_RESTRICTIONS:
+        allowed = CHART_TYPE_RESTRICTIONS[request.chart_type]
+        if request.comparison_type not in allowed:
+            raise HTTPException(400, f"'{request.chart_type}' only works with: {allowed}")
+    if not request.metrics:
+        raise HTTPException(400, "At least one metric required")
+
+    cypher_query = None
+    year = _valid_year(request.filters.get("year", 2024) if request.filters else 2024)
+
+    if request.comparison_type == "state" and request.states:
+        cypher_query = generate_state_comparison_query(request.states, request.metrics[0], year)
+    elif request.comparison_type == "district" and request.districts:
+        cypher_query = generate_district_comparison_query("Kerala", request.districts, request.metrics[0], year)
+    elif request.comparison_type == "yearly" and request.years:
+        entity = (request.filters or {}).get("entity", "Kerala")
+        etype  = (request.filters or {}).get("entity_type", "state")
+        valid_years = [y for y in request.years if y in VALID_YEARS] or VALID_YEARS
+        cypher_query = generate_yearly_trend_query(entity, etype, request.metrics[0], valid_years)
+    elif request.comparison_type == "metric" and request.metrics:
+        entity = (request.filters or {}).get("entity", "Kerala")
+        etype  = (request.filters or {}).get("entity_type", "state")
+        cypher_query = generate_multi_metric_query(entity, etype, request.metrics, year)
+
+    if not cypher_query:
+        raise HTTPException(400, "Could not build query from given parameters")
+
     try:
-        states_data = run_cypher(states_query)
-        districts_data = run_cypher(districts_query)
-        
-        available_states = [state['state_name'] for state in states_data] if states_data else []
-        available_districts = [district['district_name'] for district in districts_data] if districts_data else []
-        
+        raw = run_cypher(cypher_query)
     except Exception as e:
-        # Fallback to sample data if query fails
-        available_states = ["KERALA", "KARNATAKA", "TAMIL NADU", "ANDHRA PRADESH", "MAHARASHTRA", "GUJARAT"]
-        available_districts = ["KOTTAYAM", "ERNAKULAM", "THRISSUR", "PALAKKAD", "KOZHIKODE"]
-    
+        return DataVisualizationResponse(
+            chart_type=request.chart_type, data=None,
+            metadata={"query_used": cypher_query, "data_points": 0},
+            processing_time=round(time.time()-start,2), error=str(e))
+
+    if not raw:
+        return DataVisualizationResponse(
+            chart_type=request.chart_type, data=None,
+            metadata={"query_used": cypher_query, "data_points": 0},
+            processing_time=round(time.time()-start,2),
+            error="No data found for the given parameters")
+
+    titles = {
+        "state":   f"State-wise {request.metrics[0].title()}",
+        "district":f"District-wise {request.metrics[0].title()}",
+        "yearly":  f"Yearly {request.metrics[0].title()} Trend",
+        "metric":  "Multi-metric Analysis",
+    }
+    title = titles.get(request.comparison_type, "Analysis")
+
+    chart_data = None
+    if request.chart_type == "bar":
+        chart_data = fmt_bar(raw, title)
+    elif request.chart_type == "line":
+        chart_data = fmt_line(raw, title)
+    elif request.chart_type in ("pie", "doughnut"):
+        chart_data = fmt_pie(raw, title)
+        if chart_data and request.chart_type == "doughnut":
+            chart_data["type"] = "doughnut"
+    elif request.chart_type == "radar":
+        chart_data = fmt_radar(raw, request.metrics, title)
+
+    response = DataVisualizationResponse(
+        chart_type=request.chart_type,
+        data=chart_data,
+        metadata={"query_used": cypher_query, "data_points": len(raw), "comparison_type": request.comparison_type},
+        processing_time=round(time.time()-start, 2),
+    )
+    cache_set(cache_key, response, ttl=300)
+    return response
+
+
+@app.get("/visualization/options", tags=["Visualization"])
+async def visualization_options():
+    states_q = 'MATCH (c:Country {name:"India"})-[:HAS_STATE]->(s:State) WHERE toLower(s.name) <> "total" RETURN DISTINCT s.name AS name ORDER BY s.name'
+    districts_q = 'MATCH (s:State {name:"KERALA"})-[:HAS_DISTRICT]->(d:District) RETURN DISTINCT d.name AS name ORDER BY d.name'
+    try:
+        states_data = run_cypher(states_q)
+        dist_data   = run_cypher(districts_q)
+        states = [r["name"] for r in states_data]
+        districts = [r["name"] for r in dist_data]
+    except Exception:
+        states    = list(STATE_CENTROIDS.keys())[:10]
+        districts = ["KOTTAYAM","ERNAKULAM","THRISSUR","PALAKKAD","KOZHIKODE"]
     return {
         "chart_types": [
-            {"id": "bar", "label": "Bar Chart", "compatible_comparisons": ["state", "district", "yearly"]},
-            {"id": "line", "label": "Line Chart", "compatible_comparisons": ["state", "district", "yearly"]},
-            {"id": "pie", "label": "Pie Chart", "compatible_comparisons": ["state", "district"]},
-            {"id": "doughnut", "label": "Doughnut Chart", "compatible_comparisons": ["state", "district"]},
-            {"id": "radar", "label": "Radar Chart", "compatible_comparisons": ["metric"]}
+            {"id": "bar",      "label": "Bar Chart",      "compatible": ["state","district","yearly"]},
+            {"id": "line",     "label": "Line Chart",     "compatible": ["yearly"]},
+            {"id": "pie",      "label": "Pie Chart",      "compatible": ["state","district"]},
+            {"id": "doughnut", "label": "Doughnut Chart", "compatible": ["state","district"]},
+            {"id": "radar",    "label": "Radar Chart",    "compatible": ["metric"]},
         ],
-        "comparison_types": ["state", "district", "yearly", "metric"],
-        "metrics": VALID_METRICS,
-        "sample_states": available_states[:10],  # Limit to first 10 for UI
-        "sample_districts": {
-            "Kerala": available_districts
+        "comparison_types": ["state","district","yearly","metric"],
+        "metrics": [{"id": k, **{k2:v for k2,v in v.items() if k2 != "rel" and k2 != "node" and k2 != "prop"}} for k,v in METRIC_META.items()],
+        "states": states[:30],
+        "districts": {"Kerala": districts},
+        "years": VALID_YEARS,
+    }
+
+
+@app.get("/api/v1/states", tags=["Data"])
+async def get_states():
+    try:
+        data = run_cypher('MATCH (c:Country {name:"India"})-[:HAS_STATE]->(s:State) WHERE toLower(s.name) <> "total" RETURN s.name AS name ORDER BY s.name')
+        return {"states": [r["name"] for r in data]}
+    except Exception:
+        return {"states": list(STATE_CENTROIDS.keys())}
+
+
+@app.get("/api/v1/states/{state}/districts", tags=["Data"])
+async def get_districts(state: str):
+    try:
+        q = f'MATCH (s:State {{name:"{state.upper()}"}})-[:HAS_DISTRICT]->(d:District) RETURN d.name AS name ORDER BY d.name'
+        data = run_cypher(q)
+        return {"state": state, "districts": [r["name"] for r in data]}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.get("/api/v1/metrics", tags=["Data"])
+async def get_metrics():
+    return {
+        "metrics": [{"id": k, "label": v["label"], "unit": v["unit"]} for k, v in METRIC_META.items()],
+        "thresholds": {
+            "rainfall": {"very_low": "<500mm", "low": "500-1000mm", "normal": "1000-1500mm", "high": ">1500mm"},
+            "stage_extraction": {"safe": "<70%", "semi_critical": "70-90%", "critical": "90-100%", "over_exploited": ">100%"},
         },
-        "available_years": [2023, 2024],
-        "restrictions": {
-            "radar_chart_only_for_multi_metric": True,
-            "pie_charts_for_categorical_only": True,
-            "data_available_for": "2023-2024 only",
-            "districts_available_for": "Kerala only"
-        }
     }
 
-@app.get("/")
-async def root():
+
+@app.get("/api/v1/map/states", tags=["Map"])
+async def map_states(metric: str = "availability", year: int = 2024):
+    """Returns per-state data with coordinates for map visualization."""
+    year = _valid_year(year)
+    cache_key = f"map_states:{metric}:{year}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
+    parts = _metric_parts(metric if metric in METRIC_META else "availability")
+    if not parts:
+        raise HTTPException(400, "Invalid metric")
+    rel_type, node_type, prop = parts
+    q = (
+        f'MATCH (c:Country {{name:"India"}})-[:HAS_STATE]->(s:State)-[:HAS_YEAR]->(y:Year {{year:{year}}})'
+        f'-[:HAS_{rel_type}]->(n:{node_type}) '
+        f'WHERE n.{prop} IS NOT NULL AND toLower(s.name) <> "total" RETURN s.name AS state, n.{prop} AS value ORDER BY s.name'
+    )
+    try:
+        rows = run_cypher(q)
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+    result = []
+    for r in rows:
+        name = r.get("state", "")
+        coords = STATE_CENTROIDS.get(name, {"lat": 20.5937, "lng": 78.9629})
+        result.append({
+            "state": name,
+            "value": float(r.get("value") or 0),
+            "lat": coords["lat"],
+            "lng": coords["lng"],
+        })
+    payload = {"metric": metric, "unit": METRIC_META.get(metric, {}).get("unit", ""), "year": year, "data": result}
+    cache_set(cache_key, payload, ttl=300)
+    return payload
+
+
+@app.post("/api/v1/data/export", tags=["Export"])
+async def export_data(request: ExportRequest):
+    """Export filtered data as CSV string."""
+    import csv, io
+    year = _valid_year((request.filters or {}).get("year", 2024))
+    metric = request.metrics[0] if request.metrics else "rainfall"
+
+    if request.comparison_type == "state" and request.states:
+        cypher = generate_state_comparison_query(request.states, metric, year)
+    elif request.comparison_type == "district" and request.districts:
+        cypher = generate_district_comparison_query("Kerala", request.districts, metric, year)
+    elif request.comparison_type == "yearly":
+        entity = (request.filters or {}).get("entity", "Kerala")
+        etype  = (request.filters or {}).get("entity_type", "state")
+        valid_years = [y for y in (request.years or VALID_YEARS) if y in VALID_YEARS]
+        cypher = generate_yearly_trend_query(entity, etype, metric, valid_years)
+    else:
+        raise HTTPException(400, "Cannot build export query from given parameters")
+
+    if not cypher:
+        raise HTTPException(400, "Could not build query")
+
+    rows = run_cypher(cypher)
+    if not rows:
+        raise HTTPException(404, "No data found")
+
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=rows[0].keys())
+    writer.writeheader()
+    writer.writerows(rows)
+    csv_content = output.getvalue()
+
+    return StreamingResponse(
+        iter([csv_content]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=jalmitra_{metric}_{year}.csv"},
+    )
+
+
+@app.post("/api/v1/feedback", tags=["Feedback"])
+async def submit_feedback(request: FeedbackRequest):
+    logger.info(f"feedback rating={request.rating} query_len={len(request.query)}")
+    return {"status": "received", "message": "Thank you for your feedback!"}
+
+
+@app.get("/api/v1/suggestions", tags=["Chat"])
+async def get_suggestions(q: str = ""):
+    """Query suggestion autocomplete."""
+    all_suggestions = [
+        "What is the rainfall in Kerala?",
+        "Show groundwater draft for Karnataka",
+        "Compare recharge rates between Punjab and Haryana",
+        "Which states have over-exploited groundwater?",
+        "Groundwater availability in Tamil Nadu 2024",
+        "Show district-wise data for Kottayam",
+        "Yearly trend of rainfall in Maharashtra",
+        "Stage of extraction in Rajasthan",
+        "Critical groundwater districts in Kerala",
+        "Compare water availability across southern states",
+        "Groundwater recharge in Gujarat 2023",
+        "Over-exploited areas in Uttar Pradesh",
+    ]
+    if not q:
+        return {"suggestions": all_suggestions[:6]}
+    filtered = [s for s in all_suggestions if q.lower() in s.lower()]
+    return {"suggestions": filtered[:6]}
+
+
+# ---------- New feature models ----------
+class SubscribeRequest(BaseModel):
+    email: str
+    state: str
+    district: Optional[str] = None
+    threshold_pct: float = Field(default=100, ge=0, le=200)
+
+class AdvisoryRequest(BaseModel):
+    state: str
+    crop: str
+    district: Optional[str] = None
+
+class SimulateRequest(BaseModel):
+    state: str
+    district: Optional[str] = None
+    draft_change_pct: float = Field(..., ge=-90, le=200, description="Percent change to agricultural draft, e.g. -15 for a 15% reduction")
+    horizon: int = Field(default=5, ge=1, le=10)
+
+class ObservationRequest(BaseModel):
+    state: str
+    district: Optional[str] = None
+    well_depth_m: float = Field(..., gt=0, le=1000)
+    note: Optional[str] = Field(default=None, max_length=500)
+
+
+# ---------- 2.1 Forecasting ----------
+@app.get("/api/v1/forecast/{state}", tags=["Forecast"])
+async def forecast_state(state: str, horizon: int = 3):
+    try:
+        return forecast_service.build_forecast(state, district=None, horizon=horizon)
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@app.get("/api/v1/forecast/{state}/{district}", tags=["Forecast"])
+async def forecast_district(state: str, district: str, horizon: int = 3):
+    try:
+        return forecast_service.build_forecast(state, district=district, horizon=horizon)
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+# ---------- 2.2 Alerts ----------
+@app.post("/api/v1/alerts/subscribe", tags=["Alerts"])
+async def alerts_subscribe(request: SubscribeRequest):
+    token = alerts_service.subscribe(request.email, request.state, request.district, request.threshold_pct)
+    return {"status": "subscribed", "token": token}
+
+@app.post("/api/v1/alerts/unsubscribe", tags=["Alerts"])
+async def alerts_unsubscribe(token: str):
+    ok = alerts_service.unsubscribe(token)
+    if not ok:
+        raise HTTPException(404, "Subscription not found")
+    return {"status": "unsubscribed"}
+
+@app.get("/api/v1/alerts/subscriptions", tags=["Alerts"])
+async def alerts_list(email: Optional[str] = None):
+    return {"subscriptions": alerts_service.list_subscriptions(email)}
+
+@app.post("/api/v1/alerts/check", tags=["Alerts"])
+async def alerts_check():
+    """Manually trigger a threshold check (also runs automatically every 6h)."""
+    return alerts_service.check_thresholds()
+
+
+# ---------- 2.3 Farmer advisory ----------
+@app.post("/api/v1/advisory", tags=["Advisory"])
+async def advisory(request: AdvisoryRequest):
+    result = advisory_service.get_advisory(request.state, request.crop, request.district)
+    if "error" in result:
+        raise HTTPException(400, result["error"])
+    return result
+
+@app.get("/api/v1/advisory/crops", tags=["Advisory"])
+async def advisory_crops():
+    return {"crops": list(advisory_service.CROP_WATER_REQUIREMENTS.keys())}
+
+
+# ---------- 2.4 What-if simulator ----------
+@app.post("/api/v1/simulate", tags=["Simulator"])
+async def simulate(request: SimulateRequest):
+    try:
+        return forecast_service.build_forecast(
+            request.state, district=request.district, horizon=request.horizon,
+            draft_change_pct=request.draft_change_pct,
+        )
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+# ---------- 2.5 Crowdsourced field observations ----------
+@app.post("/api/v1/field-observations", tags=["Field Data"], dependencies=[Depends(rate_limit)])
+async def submit_field_observation(request: ObservationRequest, req: Request):
+    ip = req.client.host if req.client else "unknown"
+    try:
+        result = field_observations_service.submit_observation(
+            request.state, request.district, request.well_depth_m, request.note, ip,
+        )
+    except RuntimeError as e:
+        raise HTTPException(503, str(e))
+    return result
+
+@app.get("/api/v1/field-observations", tags=["Field Data"])
+async def get_field_observations(state: Optional[str] = None, district: Optional[str] = None, limit: int = 50):
+    return {"observations": field_observations_service.list_observations(state, district, min(limit, 200))}
+
+
+# ---------- 2.7 PDF report generation ----------
+@app.get("/api/v1/reports/{state}", tags=["Reports"])
+async def report_state(state: str, years: str = "2023,2024"):
+    year_list = [int(y) for y in years.split(",") if y.strip().isdigit()]
+    try:
+        pdf_bytes = reports_service.generate_report_pdf(state, None, year_list)
+    except Exception as e:
+        raise HTTPException(500, str(e))
+    return StreamingResponse(
+        iter([pdf_bytes]), media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=jalmitra_report_{state}.pdf"},
+    )
+
+@app.get("/api/v1/reports/{state}/{district}", tags=["Reports"])
+async def report_district(state: str, district: str, years: str = "2023,2024"):
+    year_list = [int(y) for y in years.split(",") if y.strip().isdigit()]
+    try:
+        pdf_bytes = reports_service.generate_report_pdf(state, district, year_list)
+    except Exception as e:
+        raise HTTPException(500, str(e))
+    return StreamingResponse(
+        iter([pdf_bytes]), media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=jalmitra_report_{state}_{district}.pdf"},
+    )
+
+
+# ---------- 2.7b Full structured data export (Neo4j) ----------
+@app.get("/api/v1/data/categories", tags=["Reports"])
+async def data_categories():
+    """Every Neo4j node category available for selective export."""
+    return {"categories": [{"id": k, "label": v["label"]} for k, v in reports_service.DATA_CATEGORIES.items()]}
+
+
+@app.get("/api/v1/data/export-full", tags=["Reports"])
+async def export_full_dataset(
+    state: str,
+    district: Optional[str] = None,
+    years: str = "2023,2024",
+    categories: str = "",
+    format: str = "json",
+):
+    year_list = [int(y) for y in years.split(",") if y.strip().isdigit()] or VALID_YEARS
+    cat_list = [c.strip() for c in categories.split(",") if c.strip()] or list(reports_service.DATA_CATEGORIES.keys())
+    invalid = [c for c in cat_list if c not in reports_service.DATA_CATEGORIES]
+    if invalid:
+        raise HTTPException(400, f"Unknown categories: {', '.join(invalid)}")
+
+    dataset = reports_service.fetch_full_dataset(state, district, year_list, cat_list)
+    label = f"{state}_{district}" if district else state
+
+    if format == "csv":
+        csv_content = reports_service.dataset_to_csv(dataset)
+        return StreamingResponse(
+            iter([csv_content]), media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename=jalmitra_full_export_{label}.csv"},
+        )
+    return dataset
+
+
+# ---------- 2.7c Pinecone semantic record export ----------
+@app.get("/api/v1/data/pinecone-export", tags=["Reports"])
+async def export_pinecone_data(state: str, format: str = "json"):
+    records = reports_service.export_pinecone_records(state)
+    if format == "csv":
+        csv_content = reports_service.pinecone_records_to_csv(records)
+        return StreamingResponse(
+            iter([csv_content]), media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename=jalmitra_pinecone_{state}.csv"},
+        )
+    return {"state": state.upper(), "records": records}
+
+
+# ---------- 2.8 Satellite overlay (stretch goal / stub) ----------
+@app.get("/api/v1/satellite/{state}", tags=["Satellite"])
+async def satellite_overlay(state: str, year: int = 2024):
+    try:
+        return satellite_service.get_satellite_overlay(state, year)
+    except NotImplementedError as e:
+        raise HTTPException(501, str(e))
+
+
+# ---------- 3.4 Data freshness ----------
+@app.get("/api/v1/data/freshness", tags=["Data"])
+async def data_freshness():
     return {
-        "message": "JALMITRA AI ChatBot API v3.1 with Enhanced Data Visualization", 
-        "status": "healthy",
-        "features": [
-            "Role-aware responses (farmer, policymaker, researcher, general)",
-            "Interactive data visualization with Chart.js",
-            "State, district, yearly, and multi-metric comparisons",
-            "Enhanced Neo4j queries with proper error handling",
-            "Chart type restrictions for better UX",
-            "Data validation for 2023-2024 only"
-        ]
+        "years_available": VALID_YEARS,
+        "district_coverage": "Kerala",
+        "last_ingested": "2024 CGWB/Jal Shakti assessment",
     }
 
-@app.get("/health")
-async def health_check():
-    return {
-        "status": "healthy", 
-        "service": "JALMITRA AI ChatBot v3.1",
-        "timestamp": time.time(),
-        "data_availability": {
-            "years": [2023, 2024],
-            "states": "All Indian states and UTs",
-            "districts": "Kerala districts only"
-        }
-    }
 
 if __name__ == "__main__":
     import uvicorn
-    print("🚀 Starting Enhanced JALMITRA AI ChatBot API v3.1...")
-    print("📊 Enhanced Data Visualization with Neo4j integration")
-    print("🔗 Server will be available at: http://localhost:8000")
-    print("📚 API docs at: http://localhost:8000/docs")
-    print("📊 Data visualization endpoint: /visualize") 
-    print("🎯 Visualization options: /visualization/options")
-    print("⚠️  Data available for: 2023-2024 years only")
-    print("🗺️  Districts available for: Kerala only")
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+    # `python server.py` is a dev convenience only — production runs via the
+    # Dockerfile's `uvicorn server:app --workers 1` (no --reload).
+    dev_mode = os.getenv("ENVIRONMENT", "development") != "production"
+    uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=dev_mode, log_level="info")

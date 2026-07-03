@@ -172,7 +172,7 @@ def create_embeddings(texts):
     return embeddings
 
 if __name__ == "__main__":
-    json_file = "output/india.json"
+    json_file = "data/output/india.json"
     ids, texts, metadatas = load_data(json_file)
     
     # Print first few texts to verify

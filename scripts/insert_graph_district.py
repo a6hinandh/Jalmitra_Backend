@@ -154,7 +154,7 @@ def insert_all(tx, data):
 
 # --- Run the insert ---
 if __name__ == "__main__":
-    with open("states/KERALA.json", "r") as f:
+    with open("data/states/KERALA.json", "r") as f:
         data = json.load(f)
 
     driver = GraphDatabase.driver(

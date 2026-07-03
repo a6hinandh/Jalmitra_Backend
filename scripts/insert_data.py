@@ -1,6 +1,10 @@
 # insert_data.py
 
-from embeddings import load_data, create_embeddings
+import os
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from core.embeddings import load_data, create_embeddings
 from pinecone_setup import initialize_pinecone
 
 def insert_embeddings(index, ids, texts,metadatas, embeddings):
@@ -18,7 +22,7 @@ def insert_embeddings(index, ids, texts,metadatas, embeddings):
 
 if __name__ == "__main__":
     API_KEY = "pcsk_3Fx1Dr_T9VPQFX4py9BfoeZhDgEJJ74s5SuNQYVgtnQWufp9mwsDQWrAkSsoBWDHbd5wm7"
-    json_file = "states/KERALA.json"
+    json_file = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "states", "KERALA.json")
     
     print("🚀 Starting data insertion pipeline...")
     

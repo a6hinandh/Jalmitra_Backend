@@ -1,199 +1,286 @@
-# Groundwater Data Vector Search System
+# Jalmitra — Backend API
 
-This project fetches groundwater data from the Indian Institute of Technology Hyderabad (IITH) API, processes it into vector embeddings using Hugging Face's `all-mpnet-base-v2` model, and stores them in Pinecone for efficient semantic search. The system includes an intelligent query interface powered by Google's Gemini AI for natural language responses about groundwater data across Indian states, districts, and blocks.
+> FastAPI backend powering the Jalmitra groundwater intelligence platform. Combines **Neo4j graph queries**, **Pinecone vector search**, and **Google Gemini** into a GraphRAG pipeline that answers natural-language questions about Indian groundwater.
 
-## Features
+---
 
-- **Data Fetching**: Retrieves groundwater data from IITH API for states, districts, and blocks
-- **Vector Embeddings**: Converts geographical and hydrological data into searchable vector embeddings  
-- **Pinecone Integration**: Stores and queries embeddings in Pinecone vector database
-- **AI-Powered Responses**: Uses Google Gemini AI for intelligent, context-aware answers
-- **Multi-level Geography**: Supports country, state, district, and block level data
-- **Data Validation**: Includes debugging and validation tools for data integrity
+## What is Jalmitra?
+
+**Jalmitra** (जलमित्र — "friend of water") is a groundwater intelligence platform for India, built on top of the government's own **CGWB (Central Ground Water Board)** dynamic groundwater resource assessments. Groundwater data in India is real, detailed, and public — but it is published as dense tabular PDFs and spreadsheets that are practically inaccessible to the people who need it most: farmers deciding when to sow, panchayat officials planning recharge structures, researchers looking for trends, and citizens who simply want to know if their district's water table is safe.
+
+Jalmitra exists to close that gap. It turns a static annual assessment into a **living, queryable, multilingual system** that can be asked a question in plain language and answer it with a cited, data-grounded response — and increasingly, go beyond answering into **forecasting, recommending, and alerting**.
+
+### The problem
+
+- CGWB assessment data is authoritative but locked in a format only a specialist can parse.
+- A farmer, policymaker, or citizen has no easy way to ask "is my area's groundwater in trouble?" and get a straight, trustworthy answer.
+- District-level detail is sparse outside of pilot regions — most publicly consumable tools only go as deep as the state level.
+- Existing dashboards show *what happened*, not *what's likely to happen next* or *what should be done about it*.
+
+### The vision
+
+Jalmitra is designed to move along a single axis with every feature it ships:
+
+```
+Chatbot (describe)  →  Dashboard (monitor)  →  Predictor (forecast)  →  Advisor (recommend)  →  Actor (intervene/alert)
+```
+
+A chatbot answers *"what is the situation?"*. A platform answers *"what should I do about it?"* and *"what happens if I do nothing?"*. Jalmitra started as the former and is deliberately built to grow into the latter — without ever losing the "ask a plain-language question, get a grounded answer" core that makes it usable by someone who has never opened a spreadsheet of groundwater metrics.
+
+### Who it serves
+
+Jalmitra is explicitly **role-aware**, not one-size-fits-all:
+
+- **Farmers** — plain-language answers, and a structured sowing/irrigation advisory that cross-references groundwater stage-of-extraction with crop water requirements.
+- **Policymakers** — cross-district comparison, forecasting, and a what-if simulator for testing intervention scenarios (e.g. "what if we cut agricultural draft by 15%?"), plus exportable PDF reports.
+- **Researchers** — cited answers (the Cypher query and retrieved passages behind every response), raw CSV/JSON export, and a transparent (not black-box) forecasting methodology.
+- **General public** — a friend to ask "is my water safe?" in six Indian languages, with no login and no jargon required.
+
+### How it's grounded (not a generic LLM wrapper)
+
+The single most important design decision in Jalmitra is that answers are never generated from the LLM's own memory. Every response is built from two retrieval sources — a Neo4j **knowledge graph** encoding structured relationships (state → district → year → metric) and a Pinecone **vector index** of semantically searchable assessment text — merged into a context that Gemini is asked to *summarize*, not *invent*. This is what "GraphRAG" means in this codebase: Graph + Retrieval-Augmented Generation, dual-pipeline, not single-pipeline.
+
+### Current data coverage
+
+- CGWB / Ministry of Jal Shakti assessment cycles: **2023 and 2024**
+- **28+ states and union territories** at the state level
+- **District-level detail for Kerala** (14 districts) — the deepest granularity currently available
+- Widening coverage is an active priority, primarily through the crowdsourced **Field Observations** feature (see below), which lets anyone submit a real, timestamped well-depth reading for their district — closing the data gap without waiting on a new government data partnership.
+
+### What Jalmitra can do today
+
+| Capability | What it does |
+|---|---|
+| **Conversational Q&A** | Role-aware, multilingual, streaming chat answers grounded in the knowledge graph + vector search |
+| **Interactive map** | State-level choropleth across 5 metrics and 2 years |
+| **Comparative visualization** | State/district/year/metric comparison charts with CSV/PNG export |
+| **Forecasting** | Transparent linear-trend projection of stage-of-extraction 1–3 years out, with risk-band threshold-crossing alerts |
+| **What-if simulator** | Adjustable draft-change scenario testing built on the forecasting model |
+| **Farmer advisory** | Rule-based sowing/irrigation recommendations combining live groundwater data with ICAR/CWC crop water-requirement tables |
+| **Early-warning alerts** | Threshold-based email subscriptions per state/district |
+| **Crowdsourced field observations** | Community-submitted well-depth readings, clearly separated from official CGWB data |
+| **PDF report generation** | Narrative + chart + table reports for a state/district/year range |
+| **Satellite overlay** *(stretch)* | Vegetation/soil-moisture signal, currently seeded mock data behind a stable API contract pending a live Bhuvan/GEE integration |
+
+### Design principles
+
+- **Grounded over generative** — the LLM synthesizes retrieved facts; it does not invent numbers.
+- **Transparent over impressive** — the forecasting model is a deliberately simple linear extrapolation over 2 years of data, explicitly honest about its own confidence, rather than a heavyweight model overfitting on too little history.
+- **Public and frictionless** — no authentication anywhere in the product; the barrier to "ask a question" or "submit a reading" is as close to zero as possible.
+- **Degrade gracefully** — if the Neo4j graph is temporarily unavailable (e.g. AuraDB free-tier auto-pause), the pipeline falls back to semantic-only results rather than failing outright.
+
+---
+
+## Architecture
+
+```
+User Query
+    │
+    ▼
+┌─────────────────────────────────────────────────────────┐
+│                      FastAPI  (server.py)               │
+│  POST /chat  ·  POST /chat/stream  ·  GET /api/v1/...   │
+└───────────────────┬─────────────────────────────────────┘
+                    │
+                    ▼
+          graphrag_chatbot()  (graphrag.py)
+         ┌──────────────────────────────────┐
+         │  1. detect language              │
+         │  2. Cypher query → Neo4j graph   │
+         │  3. embed query → Pinecone       │
+         │  4. merge contexts               │
+         │  5. Gemini 3.1 Flash Lite → answer   │
+         └──────────────────────────────────┘
+```
+
+**Data sources**
+- Neo4j AuraDB — 28-state groundwater knowledge graph
+- Pinecone — 768-dim sentence embeddings (`all-mpnet-base-v2`)
+- IITH INGRES API — district-level Kerala data
+- CGWB / Ministry of Jal Shakti datasets (2023–2024)
+
+---
+
+## Quick Start
+
+### 1. Prerequisites
+
+- Python 3.11+
+- A Neo4j instance (local or [AuraDB](https://neo4j.com/cloud/aura/) free tier)
+- A [Pinecone](https://www.pinecone.io/) account with one index (768 dims)
+- A [Google AI Studio](https://aistudio.google.com/) API key (Gemini 3.1 Flash Lite)
+
+### 2. Clone and install
+
+```bash
+git clone <your-repo-url>
+cd SIHb-2025
+python -m venv .venv
+# Windows:
+.venv\Scripts\activate
+# macOS/Linux:
+source .venv/bin/activate
+
+pip install -r requirements.txt
+```
+
+### 3. Configure environment
+
+```bash
+cp .env.example .env
+# Edit .env — fill in all five required keys (see below)
+```
+
+### 4. Run
+
+```bash
+uvicorn server:app --reload --port 8000
+```
+
+Open `http://localhost:8000/docs` for the interactive Swagger UI.
+
+---
+
+## Environment Variables
+
+| Variable | Required | Description |
+|---|---|---|
+| `NEO4J_URI` | ✅ | Bolt URI, e.g. `bolt://localhost:7687` or AuraDB URI |
+| `NEO4J_USER` | ✅ | Username (default: `neo4j`) |
+| `NEO4J_PASS` | ✅ | Password |
+| `PINECONE_API_KEY` | ✅ | From [pinecone.io](https://www.pinecone.io/) |
+| `PINECONE_INDEX` | ✅ | Index name (768 dimensions, cosine metric) |
+| `GENAI_API_KEY` | ✅ | Google Gemini API key |
+| `EMBED_MODEL` | ➖ | Sentence-transformer model (default: `all-mpnet-base-v2`) |
+| `ALLOWED_ORIGINS` | ➖ | Comma-separated CORS origins (default: `http://localhost:3001,http://localhost:5173`) |
+
+---
+
+## API Reference
+
+All endpoints return JSON. Error responses use `{"detail": "..."}`.
+
+### Chat
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/chat` | Single-turn question → answer |
+| `POST` | `/chat/stream` | Same, but Server-Sent Events streaming |
+
+**Request body** (both endpoints):
+```json
+{
+  "query": "What is the groundwater availability in Kerala?",
+  "role": "farmer",
+  "language": "en"
+}
+```
+`role` ∈ `farmer | policymaker | researcher | general`
+
+**Response** (`/chat`):
+```json
+{
+  "final_answer": "Kerala has ...",
+  "sources": ["cypher", "pinecone"],
+  "role_used": "farmer",
+  "language_detected": "en",
+  "processing_time": 1.23
+}
+```
+
+**SSE stream** (`/chat/stream`): emits `data: {...}` lines:
+- `{"token": "partial text"}` — streaming token
+- `{"done": true, "final_answer": "...", "sources": [...]}` — completion
+- `{"error": "message"}` — error
+
+---
+
+### Data & Visualization
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/visualize` | Generate chart data for a given comparison |
+| `GET` | `/visualization/options` | All available states, districts, metrics, years |
+| `GET` | `/api/v1/states` | List all states |
+| `GET` | `/api/v1/states/{state}/districts` | Districts for a state |
+| `GET` | `/api/v1/metrics` | All metric definitions |
+| `GET` | `/api/v1/map/states` | Per-state values for the India map choropleth |
+
+**`GET /api/v1/map/states`** query params:
+- `metric` — one of `rainfall | recharge | draft | availability | groundwater`
+- `year` — `2023` or `2024`
+
+---
+
+### Utility
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/health` | Liveness + dependency status |
+| `GET` | `/api/v1/suggestions?q=` | Query autocomplete |
+| `POST` | `/api/v1/feedback` | Submit a rating/comment |
+| `POST` | `/api/v1/data/export` | Download filtered data as CSV |
+
+---
+
+## Docker
+
+```bash
+docker build -t jalmitra-backend .
+
+docker run -p 8000:8000 \
+  -e NEO4J_URI=... \
+  -e NEO4J_USER=... \
+  -e NEO4J_PASS=... \
+  -e PINECONE_API_KEY=... \
+  -e PINECONE_INDEX=... \
+  -e GENAI_API_KEY=... \
+  jalmitra-backend
+```
+
+---
+
+## Rate Limiting
+
+In-memory, per-IP: **30 requests / minute**. Exceeding returns `HTTP 429`.
+
+---
 
 ## Project Structure
 
 ```
-├── fetch_states.py         # Fetches data from IITH API (states, districts, blocks)
-├── embeddings.py          # Creates vector embeddings from JSON data
-├── pinecone_setup.py      # Initializes Pinecone index
-├── insert_data.py         # Inserts embeddings into Pinecone
-├── query_index.py         # Basic query interface for searching data
-├── generate_response.py           # AI-powered query interface with Gemini integration
-├── check_uuids.py         # Validates UUID integrity in data
-├── debug_data.py          # Debugging tool for data structure analysis
-├── delete_index.py        # Utility to delete Pinecone indexes
-├── output/                # Directory for country-level data
-│   ├── india.json        # Raw JSON data for all Indian states
-│   └── india.csv         # Processed CSV data for states
-├── states/               # Directory for state-level district data
-└── KERALA/              # Directory for Kerala district block data
+SIHb-2025/
+├── server.py               # FastAPI app, all endpoints
+├── core/
+│   ├── graphrag.py         # GraphRAG pipeline (Neo4j + Pinecone + Gemini)
+│   └── embeddings.py       # Sentence-transformer embedding helpers
+├── services/
+│   ├── advisory_service.py           # Farmer advisory recommendations
+│   ├── alerts_service.py             # Alert rules + SQLite-backed alerts.db
+│   ├── field_observations_service.py # Field data submission/retrieval
+│   ├── forecast_service.py           # Linear-trend groundwater forecasting
+│   ├── reports_service.py            # PDF/CSV report generation
+│   └── satellite_service.py          # Satellite-derived indicators
+├── scripts/                # Dev-only seeding, debug, and indexing scripts
+│   ├── fetch_states.py     # Pull CGWB data → data/states, data/output
+│   ├── insert_data.py      # Embed + upsert into Pinecone
+│   ├── insert_graph.py     # Load india.json into Neo4j
+│   ├── insert_graph_district.py
+│   ├── pinecone_setup.py
+│   ├── query_index.py
+│   ├── check_uuids.py / debug_data.py / delete_index.py
+│   └── generate_response.py / generate_graph_response.py
+├── data/
+│   ├── states/             # Per-state CGWB JSON/CSV
+│   ├── KERALA/              # Kerala district-level JSON
+│   └── output/              # Aggregated india.json / india.csv
+├── alerts.db                # SQLite database — created at runtime, gitignored, never committed
+├── requirements.txt
+├── .env.example
+├── Dockerfile
+└── .github/workflows/ci.yml
 ```
 
-## Data Schema
+> Scripts in `scripts/` are meant to be run from the repository root (e.g. `python scripts/fetch_states.py`), since they resolve data paths relative to `data/`.
 
-The system processes groundwater data with the following key metrics:
-- **Area**: Total geographical area
-- **Rainfall**: Annual rainfall data
-- **Recharge**: Groundwater recharge rates
-- **Draft**: Groundwater extraction/draft data
-- **Stage of Extraction**: Current extraction levels
-- **Category**: Groundwater availability category
-
-## Setup Instructions
-
-### 1. Install Dependencies
-```bash
-pip install -r requirements.txt
-```
-
-Required packages:
-- `pinecone-client`
-- `sentence-transformers`
-- `google-generativeai`
-- Additional dependencies as listed in `requirements.txt`
-
-### 2. Configure API Keys
-
-#### Pinecone API Key
-Update your Pinecone API key in the relevant files:
-- `insert_data.py`
-- `delete_index.py` 
-- `query_index.py`
-- `generate_response.py`
-
-Replace `"YOUR_PINECONE_API_KEY"` with your actual API key.
-
-#### Google Gemini API Key
-Update your Google Gemini API key in `generate_response.py`:
-```python
-genai.configure(api_key="YOUR_GOOGLE_GEMINI_API_KEY")
-```
-
-### 3. Fetch Data (Optional)
-If you want to fetch fresh data from the API:
-```bash
-python fetch_states.py
-```
-This will create:
-- `output/india.json` and `output/india.csv` - State-level data
-- `states/[STATE_NAME].json` and `states/[STATE_NAME].csv` - District data for each state
-- `KERALA/[DISTRICT_NAME].json` - Block data for Kerala districts
-
-## Usage
-
-### 1. Debug and Validate Data
-```bash
-# Check data structure and content
-python debug_data.py
-
-# Validate UUIDs integrity
-python check_uuids.py
-```
-
-### 2. Create and Insert Embeddings
-```bash
-# Create embeddings and insert into Pinecone
-python insert_data.py
-```
-
-### 3. Query the System
-
-#### Basic Vector Search
-```bash
-# Basic query interface (returns raw vector search results)
-python query_index.py
-```
-
-#### AI-Powered Query Interface
-```bash
-# Intelligent query interface with natural language responses
-python generate_response.py
-```
-
-The AI-powered interface provides:
-- **Natural Language Processing**: Ask questions in plain English
-- **Context-Aware Responses**: Answers based on retrieved groundwater data
-- **Professional Analysis**: Technical explanations with exact figures and units
-- **Structured Output**: Well-organized, readable responses
-
-Example queries for the AI interface:
-- "Which states in India have the highest groundwater recharge?"
-- "What is the groundwater situation in Kerala?"
-- "Compare rainfall and recharge data for northern states"
-- "Which areas are facing critical groundwater extraction?"
-- "Show me districts with good groundwater availability"
-
-## Data Processing Pipeline
-
-1. **Data Fetching** (`fetch_states.py`): Retrieves data from IITH API
-2. **Data Validation** (`debug_data.py`, `check_uuids.py`): Validates data integrity
-3. **Embedding Creation** (`embeddings.py`): Converts data to vector embeddings
-4. **Database Setup** (`pinecone_setup.py`): Initializes Pinecone index
-5. **Data Insertion** (`insert_data.py`): Stores embeddings with metadata
-6. **Querying**: 
-   - **Basic Search** (`query_index.py`): Raw vector similarity search
-   - **AI-Enhanced Search** (`generate_response.py`): Intelligent responses with Gemini
-
-## Technical Details
-
-- **Embedding Model**: `all-mpnet-base-v2` (768 dimensions)
-- **Vector Database**: Pinecone (cosine similarity)
-- **AI Model**: Google Gemini 1.5 Flash for response generation
-- **RAG Architecture**: Retrieval-Augmented Generation for accurate, context-based responses
-- **Batch Processing**: 100 vectors per batch for efficient insertion
-- **Data Format**: JSON with nested structure for geographical hierarchy
-
-## AI Response System
-
-The RAG query system (`generate_response.py`) implements:
-- **Vector Retrieval**: Finds most relevant groundwater data based on semantic similarity
-- **Context Injection**: Provides retrieved data as context to the AI model
-- **Prompt Engineering**: Specialized prompts for groundwater expertise
-- **Response Generation**: Natural language answers with technical accuracy
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Missing UUIDs**: Run `check_uuids.py` to identify entries with missing location UUIDs
-2. **API Rate Limits**: `fetch_states.py` includes 1.5-second delays between requests
-3. **Index Conflicts**: Use `delete_index.py` to clean up existing indexes
-4. **Data Structure Issues**: Use `debug_data.py` to analyze data format problems
-5. **API Key Errors**: Ensure both Pinecone and Google Gemini API keys are valid and properly configured
-6. **Model Loading Issues**: Ensure `sentence-transformers` is properly installed and has internet access
-
-### Index Management
-```bash
-# Delete existing index if needed
-python delete_index.py
-```
-
-## API Data Source
-
-Data is fetched from: `https://ingres.iith.ac.in/api/gec/getBusinessDataForUserOpen`
-
-The API provides groundwater data with the following parameters:
-- **Component**: recharge, draft, rainfall data
-- **Period**: annual data
-- **Year**: 2024-2025
-- **Geography**: Country → State → District → Block hierarchy
-
-## Security Notes
-
-- Keep your API keys secure and never commit them to version control
-- Consider using environment variables for API key management
-- The current implementation includes API keys directly in code for demonstration - update for production use
-
-## Contributing
-
-When adding new features:
-1. Follow the existing code structure
-2. Add appropriate error handling for API calls
-3. Update validation scripts for new data fields
-4. Test with small datasets before full processing
-5. Ensure new AI prompts maintain technical accuracy
-
-## License
-
-This project processes public groundwater data from IITH for research and analysis purposes.
+> `alerts.db` is regenerated automatically by `alerts_service.py` on first run — it is runtime application state, not source, and is excluded via `.gitignore`. Never commit it; each environment (local/dev/prod) should have its own.

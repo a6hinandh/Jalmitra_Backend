@@ -142,16 +142,17 @@ Nodes:
 
 Relationships:
 (Country)-[:HAS_STATE]->(State)
-(State)-[:HAS_DISTRICT]->(District)
+(State)-[:HAS_District]->(District)   -- NOTE: mixed-case "District", unlike every other relationship below
 (State|District)-[:HAS_YEAR]->(Year)
 (Year)-[:HAS_RAINFALL|HAS_RECHARGE|HAS_DRAFT|HAS_ALLOCATION|HAS_AVAILABILITY|HAS_STAGE|HAS_GROUND_WATER|HAS_FUTURE_USE|HAS_ADDITIONAL_RECHARGE|HAS_AQUIFER|HAS_AREA|HAS_LOSS|HAS_BLOCK_SUMMARY]->(respective node)
 
 RULES:
 1. NEVER use exists() — use "property IS NOT NULL"
 2. State/district names must be UPPERCASE
-3. Default year = 2024 if not specified
+3. Default year: 2024 for STATE-level queries. 2023 for DISTRICT-level queries (district data only exists for 2023 — using 2024 for a district query returns zero rows)
 4. Return only Cypher, no code fences
 5. Rainfall unit: mm | Area unit: ha | All groundwater units: ham
+6. The district relationship is exactly HAS_District (capital H, A, S, and D — the rest lowercase). Every other relationship is fully UPPERCASE; this one is not.
 """
 
 FEW_SHOTS = """
@@ -159,13 +160,16 @@ Q: What is the rainfall in Kerala?
 Cypher: MATCH (c:Country {name:"India"})-[:HAS_STATE]->(s:State {name:"KERALA"})-[:HAS_YEAR]->(y:Year {year:2024})-[:HAS_RAINFALL]->(r:Rainfall) RETURN r.total AS rainfall
 
 Q: Show districts in Kerala with critical groundwater status
-Cypher: MATCH (s:State {name:"KERALA"})-[:HAS_DISTRICT]->(d:District) WHERE d.status = "critical" OR d.category = "critical" RETURN d.name, d.status
+Cypher: MATCH (s:State {name:"KERALA"})-[:HAS_District]->(d:District) WHERE d.status = "critical" OR d.category = "critical" RETURN d.name, d.status
 
 Q: Rainfall data for Kottayam district in 2023
-Cypher: MATCH (c:Country {name:"India"})-[:HAS_STATE]->(:State {name:"KERALA"})-[:HAS_DISTRICT]->(d:District {name:"KOTTAYAM"})-[:HAS_YEAR]->(y:Year {year:2023})-[:HAS_RAINFALL]->(r:Rainfall) RETURN d.name AS district, y.year AS year, r.total AS rainfall
+Cypher: MATCH (c:Country {name:"India"})-[:HAS_STATE]->(:State {name:"KERALA"})-[:HAS_District]->(d:District {name:"KOTTAYAM"})-[:HAS_YEAR]->(y:Year {year:2023})-[:HAS_RAINFALL]->(r:Rainfall) RETURN d.name AS district, y.year AS year, r.total AS rainfall
+
+Q: What is the stage of extraction in Kottayam district?
+Cypher: MATCH (c:Country {name:"India"})-[:HAS_STATE]->(:State {name:"KERALA"})-[:HAS_District]->(d:District {name:"KOTTAYAM"})-[:HAS_YEAR]->(y:Year {year:2023})-[:HAS_STAGE]->(s:StageOfExtraction) RETURN d.name AS district, s.total AS stageOfExtraction
 
 Q: Compare groundwater draft between Kerala and Tamil Nadu
-Cypher: MATCH (c:Country {name:"India"})-[:HAS_STATE]->(s:State)-[:HAS_YEAR]->(y:Year {year:2024})-[:HAS_DRAFT]->(d:Draft) WHERE s.name IN ["KERALA","TAMIL NADU"] RETURN s.name AS state, d.total AS draft ORDER BY state
+Cypher: MATCH (c:Country {name:"India"})-[:HAS_STATE]->(s:State)-[:HAS_YEAR]->(y:Year {year:2024})-[:HAS_DRAFT]->(d:Draft) WHERE s.name IN ["KERALA","TAMILNADU"] RETURN s.name AS state, d.total AS draft ORDER BY state
 """
 
 CONTEXT_THRESHOLDS = {
@@ -216,11 +220,29 @@ def interpret_value(value: float, metric_type: str) -> str:
     return "normal"
 
 
+def _upper_literal(m):
+    # State/District names are stored UPPERCASE in the graph, so blanket-uppercasing
+    # string literals is correct for them. The single Country node is the one
+    # exception — it's stored as mixed-case "India", not "INDIA". Uppercasing it
+    # broke every generated query that starts from (c:Country), which is nearly all
+    # of them (see FEW_SHOTS) — the match silently returned zero rows. Normalize
+    # any casing Gemini produces (India/INDIA/india) back to the graph's actual value.
+    if m.group(0).strip('"').upper() == "INDIA":
+        return '"India"'
+    return m.group(0).upper()
+
+
 def sanitize_cypher(q: str) -> str:
     q = re.sub(r'```cypher\s*', '', q)
     q = re.sub(r'```\s*$', '', q)
     q = re.sub(r'exists\(([^)]+)\)', r'\1 IS NOT NULL', q)
-    q = re.sub(r'"[^"]*"', lambda m: m.group(0).upper(), q)
+    q = re.sub(r'"[^"]*"', _upper_literal, q)
+    # Safety net: the district relationship is the one mixed-case exception
+    # (HAS_District, not HAS_DISTRICT) among otherwise all-uppercase relationship
+    # types. Gemini sometimes "corrects" it back to the all-caps pattern despite
+    # the prompt instruction, which silently matches zero rows (Neo4j relationship
+    # types are case-sensitive). Normalize any casing to the real one.
+    q = re.sub(r'\bHAS_DISTRICT\b', 'HAS_District', q, flags=re.IGNORECASE)
     q = re.sub(r'\s+', ' ', q).strip()
     return q
 
@@ -648,7 +670,8 @@ def generate_response(semantic_results, graph_results, query, cypher_used, role,
         "- If there is conversation history, use it for context on follow-up questions\n\n"
         "FORMATTING (Markdown, rendered in a chat bubble):\n"
         "- **Bold** every key figure, metric name, and place name so it stands out\n"
-        "- When comparing multiple values or listing more than one item, use a bulleted list (one \"- \" per line) instead of a run-on sentence\n"
+        "- When comparing multiple values or listing more than one item, use a bulleted list instead of a run-on sentence\n"
+        "- CRITICAL: put each bullet on its OWN line, starting with \"- \". Every list item MUST begin on a new line (a real line break). NEVER write bullets inline within a sentence like \"... * item * item\"\n"
         "- Separate distinct ideas into short paragraphs (1-2 sentences each) with a blank line between them\n"
         "- Never output a single dense paragraph for anything with more than one data point\n\n"
         "Response:"

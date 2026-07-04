@@ -14,7 +14,7 @@ We aim to acknowledge reports within **72 hours** and to provide a resolution ti
 
 ## Scope
 
-This policy covers the `SIHb-2025` FastAPI backend, including:
+This policy covers the `Jalmitra_Backend` FastAPI backend, including:
 
 - Injection risks (Cypher, SQL, prompt injection into the GraphRAG pipeline)
 - Authentication/authorization and rate-limiting bypasses

@@ -7,7 +7,7 @@ Thanks for your interest in improving the Jalmitra GraphRAG backend. This guide 
 1. Fork and clone the repository.
 2. Create and activate a virtual environment:
    ```bash
-   cd SIHb-2025
+   cd Jalmitra_Backend
    python -m venv .venv
    # Windows:
    .venv\Scripts\activate

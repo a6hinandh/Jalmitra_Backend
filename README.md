@@ -75,25 +75,30 @@ The single most important design decision in Jalmitra is that answers are never 
 User Query
     │
     ▼
-┌─────────────────────────────────────────────────────────┐
-│                      FastAPI  (server.py)               │
-│  POST /chat  ·  POST /chat/stream  ·  GET /api/v1/...   │
-└───────────────────┬─────────────────────────────────────┘
-                    │
-                    ▼
-          graphrag_chatbot()  (graphrag.py)
-         ┌──────────────────────────────────┐
-         │  1. detect language              │
-         │  2. Cypher query → Neo4j graph   │
-         │  3. embed query → Pinecone       │
-         │  4. merge contexts               │
-         │  5. Gemini 3.1 Flash Lite → answer   │
-         └──────────────────────────────────┘
+┌────────────────────────────────────────────────────────┐
+│  FastAPI  (server.py)                                  │
+│  POST /chat  ·  POST /chat/stream  ·  GET /api/v1/...  │
+└────────────────────────────────────────────────────────┘
+    │
+    ▼
+graphrag_chatbot()  (graphrag.py)
+┌─────────────────────────────────────────────────────────────────────┐
+│  1. detect language                                                 │
+│  2. Cypher query  -> Neo4j graph            (always on)             │
+│  3. embed query   -> Pinecone   (only if PINECONE_ACTIVATION=true)  │
+│  4. merge contexts                                                  │
+│  5. Gemini 3.1 Flash Lite -> answer                                 │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
+Step 3 is gated behind `PINECONE_ACTIVATION` (default `false`) — see
+[Deployment modes](#deployment-modes-why-pinecone-is-off-in-production) below.
+Production runs steps 1, 2, 4, 5 only (Neo4j + Gemini); the full pipeline
+including step 3 is available locally / on hosts with ≥1GB RAM.
+
 **Data sources**
-- Neo4j AuraDB — 28-state groundwater knowledge graph
-- Pinecone — sentence embeddings (optional layer, see below)
+- Neo4j AuraDB — 28-state groundwater knowledge graph (always used)
+- Pinecone — sentence embeddings (optional layer, disabled in production — see below)
 - IITH INGRES API — district-level Kerala data
 - CGWB / Ministry of Jal Shakti datasets (2023–2024)
 
@@ -133,14 +138,14 @@ To run the full pipeline locally, set `PINECONE_ACTIVATION=true` (and a valid
 
 - Python 3.11+
 - A Neo4j instance (local or [AuraDB](https://neo4j.com/cloud/aura/) free tier)
-- A [Pinecone](https://www.pinecone.io/) account with one index (768 dims)
 - A [Google AI Studio](https://aistudio.google.com/) API key (Gemini 3.1 Flash Lite)
+- Optional: a [Pinecone](https://www.pinecone.io/) account with one index, only if you plan to run with `PINECONE_ACTIVATION=true` (see [Deployment modes](#deployment-modes-why-pinecone-is-off-in-production))
 
 ### 2. Clone and install
 
 ```bash
-git clone <your-repo-url>
-cd SIHb-2025
+git clone https://github.com/a6hinandh/Jalmitra_Backend.git
+cd Jalmitra_Backend
 python -m venv .venv
 # Windows:
 .venv\Scripts\activate
@@ -154,7 +159,8 @@ pip install -r requirements.txt
 
 ```bash
 cp .env.example .env
-# Edit .env — fill in all five required keys (see below)
+# Edit .env — fill in the four required keys (NEO4J_URI, NEO4J_USER, NEO4J_PASS, GENAI_API_KEY).
+# Pinecone vars are only needed if PINECONE_ACTIVATION=true.
 ```
 
 ### 4. Run
@@ -276,10 +282,10 @@ In-memory, per-IP: **30 requests / minute**. Exceeding returns `HTTP 429`.
 ## Project Structure
 
 ```
-SIHb-2025/
+Jalmitra_Backend/
 ├── server.py               # FastAPI app, all endpoints
 ├── core/
-│   ├── graphrag.py         # GraphRAG pipeline (Neo4j + Pinecone + Gemini)
+│   ├── graphrag.py         # GraphRAG pipeline (Neo4j + Gemini; Pinecone optional, see Deployment modes)
 │   └── embeddings.py       # Sentence-transformer embedding helpers
 ├── services/
 │   ├── advisory_service.py           # Farmer advisory recommendations

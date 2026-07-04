@@ -61,7 +61,7 @@ def get_embed_model():
     if embed_model is None:
         with _embed_lock:
             if embed_model is None:
-                embed_model = SentenceTransformer(EMBED_MODEL_NAME)
+                embed_model = SentenceTransformer(EMBED_MODEL_NAME, model_kwargs={"dtype": torch.bfloat16})
     return embed_model
 
 def _warmup():

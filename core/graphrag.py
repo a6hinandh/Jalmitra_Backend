@@ -9,6 +9,7 @@ import re
 import time
 import torch
 import threading
+import sys
 from typing import Dict, List, Any, Optional, Tuple
 from functools import lru_cache
 from dotenv import load_dotenv
@@ -34,11 +35,17 @@ QUERY_TIMEOUT = 30
 MAX_RETRIES   = 3
 
 if not GENAI_API_KEY:
-    raise SystemExit("GENAI_API_KEY is required in .env")
+    sys.stderr.write("FATAL ERROR: GENAI_API_KEY environment variable is missing! Please configure it in Render Env settings.\n")
+    sys.stderr.flush()
+    raise SystemExit("GENAI_API_KEY is required")
 if not (NEO4J_URI and NEO4J_USER and NEO4J_PASS):
-    raise SystemExit("Neo4j credentials (NEO4J_URI, NEO4J_USER, NEO4J_PASS) required in .env")
+    sys.stderr.write("FATAL ERROR: Neo4j credentials (NEO4J_URI, NEO4J_USER, NEO4J_PASS) are missing! Please configure them in Render Env settings.\n")
+    sys.stderr.flush()
+    raise SystemExit("Neo4j credentials required")
 if not PINECONE_API_KEY:
-    raise SystemExit("PINECONE_API_KEY is required in .env")
+    sys.stderr.write("FATAL ERROR: PINECONE_API_KEY environment variable is missing! Please configure it in Render Env settings.\n")
+    sys.stderr.flush()
+    raise SystemExit("PINECONE_API_KEY is required")
 
 driver = GraphDatabase.driver(
     NEO4J_URI,

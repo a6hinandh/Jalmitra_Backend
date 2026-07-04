@@ -7,7 +7,6 @@ state/district/year-range, reusing the same data layer as CSV export.
 
 import io
 import csv
-import json
 from typing import Optional, List, Dict, Any
 import google.generativeai as genai
 from reportlab.lib.pagesizes import A4

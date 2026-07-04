@@ -172,10 +172,10 @@ def get_advisory(state: str, crop: str, district: Optional[str] = None) -> Dict[
             f"- Additional Irrigation Needed: {irrigation_needed_mm:.1f} mm\n"
             f"- Local Groundwater Stage of Extraction: {stage if stage is not None else 'unknown'}% (classification: {risk_flag})\n"
             + (f"- Suggested lower-water alternate crop: {alternate_crop}\n" if alternate_crop else "")
-            + f"\nRequirements:\n"
-            f"- Use simple, warm, clear language suitable for a farmer.\n"
-            f"- If risk is high/severe, reinforce urgency without being alarmist.\n"
-            f"- Do not reference code/LLM/model details.\n"
+            + "\nRequirements:\n"
+            "- Use simple, warm, clear language suitable for a farmer.\n"
+            "- If risk is high/severe, reinforce urgency without being alarmist.\n"
+            "- Do not reference code/LLM/model details.\n"
         )
         try:
             model = genai.GenerativeModel("gemini-3.1-flash-lite")

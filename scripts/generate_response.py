@@ -1,4 +1,3 @@
-from pinecone import Pinecone
 import google.generativeai as genai
 from sentence_transformers import SentenceTransformer
 from pinecone_setup import initialize_pinecone
@@ -21,7 +20,7 @@ def query_index(index, model, query_text, top_k=5):
 
 # 4. Function to generate response with Gemini
 def generate_response(results, query):
-    prompt = f"""    
+    prompt = f"""
     You are an expert in groundwater assessment and management. Your role is to provide accurate, data-driven responses based strictly on the given context.
 
     Rules:

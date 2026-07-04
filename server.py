@@ -8,8 +8,7 @@ import json
 import time
 import logging
 import asyncio
-import uuid
-from datetime import datetime
+from collections import defaultdict
 from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
 
@@ -23,11 +22,9 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from core.graphrag import graphrag_chatbot, run_cypher
 from services import (
     forecast_service,
-    alerts_service,
     advisory_service,
     field_observations_service,
     reports_service,
-    satellite_service,
 )
 
 load_dotenv()
@@ -42,7 +39,6 @@ logger = logging.getLogger("jalmitra")
 
 
 # ---------- Rate Limiting (simple in-memory) ----------
-from collections import defaultdict
 _rate_store: Dict[str, List[float]] = defaultdict(list)
 
 def check_rate_limit(ip: str, max_requests: int = 30, window: int = 60) -> bool:
@@ -76,15 +72,8 @@ def cache_set(key: str, value, ttl: int = 300):
     _ttl_cache[key] = (value, time.time() + ttl)
 
 
-# ---------- Scheduled jobs (alerts + data-freshness) ----------
+# ---------- Scheduled jobs (data-freshness) ----------
 scheduler = BackgroundScheduler()
-
-def _scheduled_alert_check():
-    try:
-        result = alerts_service.check_thresholds()
-        logger.info(f"scheduled alert check: {result}")
-    except Exception as e:
-        logger.error(f"scheduled alert check failed: {e}")
 
 def _scheduled_ingestion_reminder():
     # Placeholder for automated ingestion (roadmap 3.4): CGWB/Jal Shakti datasets are published
@@ -98,8 +87,6 @@ def _scheduled_ingestion_reminder():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Jalmitra API starting up")
-    alerts_service.init_db()
-    scheduler.add_job(_scheduled_alert_check, "interval", hours=6, id="alert_check", replace_existing=True)
     scheduler.add_job(_scheduled_ingestion_reminder, "interval", hours=24, id="ingestion_check", replace_existing=True)
     scheduler.start()
     yield
@@ -662,7 +649,8 @@ async def map_states(metric: str = "availability", year: int = 2024):
 @app.post("/api/v1/data/export", tags=["Export"])
 async def export_data(request: ExportRequest):
     """Export filtered data as CSV string."""
-    import csv, io
+    import csv
+    import io
     year = _valid_year((request.filters or {}).get("year", 2024))
     metric = request.metrics[0] if request.metrics else "rainfall"
 
@@ -728,12 +716,6 @@ async def get_suggestions(q: str = ""):
 
 
 # ---------- New feature models ----------
-class SubscribeRequest(BaseModel):
-    email: str
-    state: str
-    district: Optional[str] = None
-    threshold_pct: float = Field(default=100, ge=0, le=200)
-
 class AdvisoryRequest(BaseModel):
     state: str
     crop: str
@@ -766,29 +748,6 @@ async def forecast_district(state: str, district: str, horizon: int = 3):
         return forecast_service.build_forecast(state, district=district, horizon=horizon)
     except Exception as e:
         raise HTTPException(500, str(e))
-
-
-# ---------- 2.2 Alerts ----------
-@app.post("/api/v1/alerts/subscribe", tags=["Alerts"])
-async def alerts_subscribe(request: SubscribeRequest):
-    token = alerts_service.subscribe(request.email, request.state, request.district, request.threshold_pct)
-    return {"status": "subscribed", "token": token}
-
-@app.post("/api/v1/alerts/unsubscribe", tags=["Alerts"])
-async def alerts_unsubscribe(token: str):
-    ok = alerts_service.unsubscribe(token)
-    if not ok:
-        raise HTTPException(404, "Subscription not found")
-    return {"status": "unsubscribed"}
-
-@app.get("/api/v1/alerts/subscriptions", tags=["Alerts"])
-async def alerts_list(email: Optional[str] = None):
-    return {"subscriptions": alerts_service.list_subscriptions(email)}
-
-@app.post("/api/v1/alerts/check", tags=["Alerts"])
-async def alerts_check():
-    """Manually trigger a threshold check (also runs automatically every 6h)."""
-    return alerts_service.check_thresholds()
 
 
 # ---------- 2.3 Farmer advisory ----------
@@ -903,15 +862,6 @@ async def export_pinecone_data(state: str, format: str = "json"):
             headers={"Content-Disposition": f"attachment; filename=jalmitra_pinecone_{state}.csv"},
         )
     return {"state": state.upper(), "records": records}
-
-
-# ---------- 2.8 Satellite overlay (stretch goal / stub) ----------
-@app.get("/api/v1/satellite/{state}", tags=["Satellite"])
-async def satellite_overlay(state: str, year: int = 2024):
-    try:
-        return satellite_service.get_satellite_overlay(state, year)
-    except NotImplementedError as e:
-        raise HTTPException(501, str(e))
 
 
 # ---------- 3.4 Data freshness ----------

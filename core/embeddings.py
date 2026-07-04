@@ -6,17 +6,17 @@ from sentence_transformers import SentenceTransformer
 def load_data(json_file):
     with open(json_file, "r", encoding="utf-8") as f:
         data = json.load(f)
-    
+
     texts = []
     ids = []
     metadatas=[]
-    
+
     for entry in data:
         # Since there's no loctype field, we'll process all entries as states
         # They all seem to be state-level data based on the locationName values
-        
+
         location_name = entry.get('locationName', 'Unknown')
-        
+
         # Extract nested data safely
         area_data = entry.get('area', {})
         total_area = None
@@ -29,7 +29,7 @@ def load_data(json_file):
             if isinstance(area_data['total'], dict):
                 total_area = area_data['total'].get('totalArea')
                 hilly_area = area_data['total'].get('hillyArea')
-                
+
             else:
                 total_area = area_data.get('total')
             if isinstance(area_data['recharge_worthy'],dict):
@@ -44,12 +44,12 @@ def load_data(json_file):
         if isinstance(loss_data, dict):
             total_loss = loss_data.get("total")
 
-        # future_use = None 
+        # future_use = None
         # future_use_data = entry.get("gwProjectedUtilAllocationDynamicAquifer",{})
         # if isinstance(future_use_data, dict):
         #     future_use = future_use_data["total"].get("total")
 
-        avaialable_groundwater = None 
+        avaialable_groundwater = None
         avaialable_groundwater_command = None
         avaialable_groundwater_non_command = None
         groundwater_data = entry.get("totalGWAvailability",{})
@@ -57,12 +57,12 @@ def load_data(json_file):
             avaialable_groundwater = groundwater_data.get("total")
             avaialable_groundwater_command = groundwater_data.get("non_command")
             avaialable_groundwater_non_command = groundwater_data.get("command")
-        
+
         rainfall_data = entry.get('rainfall', {})
         rainfall_total = None
         if isinstance(rainfall_data, dict):
             rainfall_total = rainfall_data.get('total')
-        
+
         recharge_data = entry.get('rechargeData', {})
         recharge_total = None
         rainfall_recharge_total = None
@@ -72,7 +72,7 @@ def load_data(json_file):
         groundWater_recharge_total = None
         waterConversationStructures_recharge_total = None
         tanksAndPonds_recharge_total = None
-        
+
         if isinstance(recharge_data, dict) and 'total' in recharge_data:
             if isinstance(recharge_data['total'], dict):
                 recharge_total = recharge_data.get('total',"")
@@ -85,7 +85,7 @@ def load_data(json_file):
                 tanksAndPonds_recharge_total=recharge_data.get("water_body","")
             else:
                 recharge_total = recharge_data.get('total')
-        
+
         draft_data = entry.get('draftData', {})
         draft_total = None
         if isinstance(draft_data, dict) and 'total' in draft_data:
@@ -101,12 +101,12 @@ def load_data(json_file):
                 future_total = future_data['total'].get('total')
             else:
                 future_total = future_data.get('total')
-        
+
         stage_extraction = entry.get('stageOfExtraction', {})
         stage_total = None
         if isinstance(stage_extraction, dict):
             stage_total = stage_extraction.get('total')
-        
+
         category = entry.get('category', 'Unknown')
 
 
@@ -120,7 +120,7 @@ def load_data(json_file):
             "Stage of ground water extraction" : stage_total
 
         }
-        
+
         # Create text representation
         text = f"""
         Ground water report for {location_name}:
@@ -146,13 +146,13 @@ def load_data(json_file):
             "Tanks and Ponds" : {tanksAndPonds_recharge_total},
             """
         }
-        Total extractable ground water : {draft_total} 
+        Total extractable ground water : {draft_total}
         Ground water extraction data : {draft_data}
         Available Groundwater for future use : {future_total}
         Stage of ground water extraction : {stage_total}
         Category: {category}
         """
-        
+
         texts.append(text)
         metadatas.append(metadata)
         # Use locationUUID as ID, or fallback to a generated ID
@@ -162,8 +162,8 @@ def load_data(json_file):
             safe_name = location_name.replace(" ", "_").replace("-", "_").lower()
             entry_id = f"district_{safe_name}_{len(ids)}"
         ids.append(str(entry_id))  # Ensure it's always a string
-    
-    
+
+
     return ids, texts, metadatas
 
 def create_embeddings(texts):
@@ -174,11 +174,11 @@ def create_embeddings(texts):
 if __name__ == "__main__":
     json_file = "data/output/india.json"
     ids, texts, metadatas = load_data(json_file)
-    
+
     # Print first few texts to verify
-    print(f"📝 Sample processed texts:")
+    print("📝 Sample processed texts:")
     for i, text in enumerate(texts[:3]):
         print(f"  {i+1}. {text}")
-    
+
     embeddings = create_embeddings(texts)
     print(f"✅ Created embeddings for {len(texts)} states.")

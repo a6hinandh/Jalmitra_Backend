@@ -48,7 +48,7 @@ def insert_all(tx, data):
 
         # Block Summary (make key unique per District)
         for k, v in District["reportSummary"].items():
-            if k != "total": 
+            if k != "total":
                 continue
             block = clean_dict(v.get("BLOCK", {}))
             tx.run("""
@@ -124,7 +124,7 @@ def insert_all(tx, data):
             SET f += $future
             MERGE (l)-[:HAS_FUTURE_USE]->(f)
         """, loc=loc, uuid=uuid, future=clean_dict(District["availabilityForFutureUse"]))
-        
+
 
         # Additional Recharge
         add_recharge = {k: v.get("total") for k, v in District["additionalRecharge"].items() if isinstance(v, dict)}
@@ -158,7 +158,7 @@ if __name__ == "__main__":
         data = json.load(f)
 
     driver = GraphDatabase.driver(
-        "neo4j+s://03882640.databases.neo4j.io", 
+        "neo4j+s://03882640.databases.neo4j.io",
         auth=("03882640", "jacLTqC7FH6l_qgbf6gQJp7wfXBq3b39EqV6KMPhiT4")
     )
 

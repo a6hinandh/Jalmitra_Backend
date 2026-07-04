@@ -1,4 +1,7 @@
-import requests, json, os, time
+import requests
+import json
+import os
+import time
 import pandas as pd
 
 # API endpoint
@@ -122,7 +125,7 @@ with open("data/states/KERALA.json", "r") as file:
 for s in data:
     district_name = s["locationName"]
     district_uuid = s["locationUUID"]
-    
+
 
     district_payload = base_payload.copy()
     district_payload.update({

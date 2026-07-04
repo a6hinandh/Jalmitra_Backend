@@ -102,18 +102,18 @@ def run_cypher(cypher_query):
 
 # --- Chatbot Interface ---
 def chatbot(user_query):
-    cypher = query_to_cypher(user_query)    
+    cypher = query_to_cypher(user_query)
 
     try:
         results = run_cypher(cypher)
         return results if results else "No results found."
     except Exception as e:
         return f"⚠️ Error running query: {e}"
-    
+
 def generate_response(answer, query):
-    prompt = f"""   
+    prompt = f"""
     You will be given the result of a Cypher query.
-    Convert it into a meaningful sentence so that the user can understand it 
+    Convert it into a meaningful sentence so that the user can understand it
     If the given result is not a cypher query, respond non-affirmatively in a polite way
 
     Rules:

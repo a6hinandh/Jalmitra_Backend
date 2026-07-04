@@ -126,25 +126,38 @@ def interpret_value(value: float, metric_type: str) -> str:
     if not t:
         return "normal"
     if metric_type == "rainfall":
-        if value < t["very_low"]: return "very low"
-        if value < t["low"]:      return "below normal"
-        if value < t["normal"]:   return "normal"
-        if value < t["high"]:     return "above normal"
+        if value < t["very_low"]:
+            return "very low"
+        if value < t["low"]:
+            return "below normal"
+        if value < t["normal"]:
+            return "normal"
+        if value < t["high"]:
+            return "above normal"
         return "very high"
     if metric_type == "groundwater_draft":
-        if value < t["low"]:      return "low"
-        if value < t["normal"]:   return "normal"
-        if value < t["high"]:     return "high"
+        if value < t["low"]:
+            return "low"
+        if value < t["normal"]:
+            return "normal"
+        if value < t["high"]:
+            return "high"
         return "critical"
     if metric_type == "recharge":
-        if value < t["poor"]:     return "poor"
-        if value < t["normal"]:   return "normal"
-        if value < t["good"]:     return "good"
+        if value < t["poor"]:
+            return "poor"
+        if value < t["normal"]:
+            return "normal"
+        if value < t["good"]:
+            return "good"
         return "excellent"
     if metric_type == "stage_of_extraction":
-        if value < t["safe"]:         return "safe"
-        if value < t["semi_critical"]: return "semi-critical"
-        if value < t["critical"]:      return "critical"
+        if value < t["safe"]:
+            return "safe"
+        if value < t["semi_critical"]:
+            return "semi-critical"
+        if value < t["critical"]:
+            return "critical"
         return "over-exploited"
     return "normal"
 
@@ -192,9 +205,9 @@ def query_to_cypher(user_query: str) -> Optional[str]:
 def run_cypher_fallback(query: str) -> List[Dict[str, Any]]:
     import re
     import json
-    
+
     query_upper = query.upper().strip()
-    
+
     metric_map = {
         "RAINFALL": "rainfall",
         "RECHARGE": "recharge",
@@ -205,7 +218,7 @@ def run_cypher_fallback(query: str) -> List[Dict[str, Any]]:
         "STAGEOFEXTRACTION": "stage",
         "FUTURE_USE": "future_use"
     }
-    
+
     def get_metric_val(state_data, metric_name):
         if not state_data:
             return None
@@ -276,10 +289,10 @@ def run_cypher_fallback(query: str) -> List[Dict[str, Any]]:
                 break
         if not metric_rel:
             metric_rel = "availability"
-            
+
         district_match = re.search(r'DISTRICT\s*\{\s*NAME\s*:\s*["\']([^"\']+)["\']', query_upper)
         state_match = re.search(r'STATE\s*\{\s*NAME\s*:\s*["\']([^"\']+)["\']', query_upper)
-        
+
         val = None
         if district_match:
             d_name = district_match.group(1)
@@ -290,7 +303,7 @@ def run_cypher_fallback(query: str) -> List[Dict[str, Any]]:
             s_name = state_match.group(1)
             s_data = find_state_data(s_name)
             val = get_metric_val(s_data, metric_rel)
-            
+
         if val is not None:
             return [{"value": val}]
         return []
@@ -304,10 +317,10 @@ def run_cypher_fallback(query: str) -> List[Dict[str, Any]]:
                 break
         if not metric_rel:
             metric_rel = "availability"
-            
+
         district_match = re.search(r'DISTRICT\s*\{\s*NAME\s*:\s*["\']([^"\']+)["\']', query_upper)
         state_match = re.search(r'STATE\s*\{\s*NAME\s*:\s*["\']([^"\']+)["\']', query_upper)
-        
+
         val = None
         if district_match:
             d_name = district_match.group(1)
@@ -318,7 +331,7 @@ def run_cypher_fallback(query: str) -> List[Dict[str, Any]]:
             s_name = state_match.group(1)
             s_data = find_state_data(s_name)
             val = get_metric_val(s_data, metric_rel)
-            
+
         results = []
         if val is not None:
             results.append({"year": 2023, "value": round(val * 0.97, 2)})
@@ -334,7 +347,7 @@ def run_cypher_fallback(query: str) -> List[Dict[str, Any]]:
                 break
         if not metric_rel:
             metric_rel = "availability"
-            
+
         india_json_path = os.path.join(backend_dir, "data", "output", "india.json")
         if os.path.exists(india_json_path):
             data = load_json(india_json_path)
@@ -342,7 +355,7 @@ def run_cypher_fallback(query: str) -> List[Dict[str, Any]]:
             allowed_states = None
             if states_filter:
                 allowed_states = [s.strip().replace('"', '').replace("'", "") for s in states_filter.group(1).split(",")]
-                
+
             results = []
             for s in data:
                 s_name = s["locationName"]
@@ -363,12 +376,12 @@ def run_cypher_fallback(query: str) -> List[Dict[str, Any]]:
                 break
         if not metric_rel:
             metric_rel = "availability"
-            
+
         states_filter = re.search(r'S\.NAME\s+IN\s+\[([^\]]+)\]', query_upper)
         allowed_states = []
         if states_filter:
             allowed_states = [s.strip().replace('"', '').replace("'", "") for s in states_filter.group(1).split(",")]
-            
+
         results = []
         for s_name in allowed_states:
             s_data = find_state_data(s_name)
@@ -386,15 +399,15 @@ def run_cypher_fallback(query: str) -> List[Dict[str, Any]]:
                 break
         if not metric_rel:
             metric_rel = "availability"
-            
+
         state_match = re.search(r'STATE\s*\{\s*NAME\s*:\s*["\']([^"\']+)["\']', query_upper)
         state_name = state_match.group(1) if state_match else "KERALA"
-        
+
         districts_filter = re.search(r'D\.NAME\s+IN\s+\[([^\]]+)\]', query_upper)
         allowed_districts = []
         if districts_filter:
             allowed_districts = [d.strip().replace('"', '').replace("'", "") for d in districts_filter.group(1).split(",")]
-            
+
         results = []
         for d_name in allowed_districts:
             d_data = find_district_data(state_name, d_name)
@@ -412,15 +425,15 @@ def run_cypher_fallback(query: str) -> List[Dict[str, Any]]:
                 break
         if not metric_rel:
             metric_rel = "availability"
-            
+
         years_filter = re.search(r'Y\.YEAR\s+IN\s+\[([^\]]+)\]', query_upper)
         years = [2023, 2024]
         if years_filter:
             years = [int(y.strip()) for y in years_filter.group(1).split(",")]
-            
+
         district_match = re.search(r'DISTRICT\s*\{\s*NAME\s*:\s*["\']([^"\']+)["\']', query_upper)
         state_match = re.search(r'STATE\s*\{\s*NAME\s*:\s*["\']([^"\']+)["\']', query_upper)
-        
+
         val = None
         if district_match:
             d_name = district_match.group(1)
@@ -431,7 +444,7 @@ def run_cypher_fallback(query: str) -> List[Dict[str, Any]]:
             s_name = state_match.group(1)
             s_data = find_state_data(s_name)
             val = get_metric_val(s_data, metric_rel)
-            
+
         results = []
         if val is not None:
             for yr in sorted(years):
@@ -447,7 +460,7 @@ def run_cypher_fallback(query: str) -> List[Dict[str, Any]]:
     if "OPTIONAL MATCH" in query_upper and ("RAINFALL" in query_upper or "RECHARGE" in query_upper):
         state_match = re.search(r'STATE\s*\{\s*NAME\s*:\s*["\']([^"\']+)["\']', query_upper)
         district_match = re.search(r'DISTRICT\s*\{\s*NAME\s*:\s*["\']([^"\']+)["\']', query_upper)
-        
+
         data_source = None
         if district_match:
             d_name = district_match.group(1)
@@ -456,7 +469,7 @@ def run_cypher_fallback(query: str) -> List[Dict[str, Any]]:
         elif state_match:
             s_name = state_match.group(1)
             data_source = find_state_data(s_name)
-            
+
         if data_source:
             res = {}
             for rel in metric_map:
@@ -539,10 +552,14 @@ def generate_response(semantic_results, graph_results, query, cypher_used, role,
                 continue
             mt = None
             kl = k.lower()
-            if "rainfall" in kl:   mt = "rainfall"
-            elif "draft" in kl:    mt = "groundwater_draft"
-            elif "recharge" in kl: mt = "recharge"
-            elif "stage" in kl or "extraction" in kl: mt = "stage_of_extraction"
+            if "rainfall" in kl:
+                mt = "rainfall"
+            elif "draft" in kl:
+                mt = "groundwater_draft"
+            elif "recharge" in kl:
+                mt = "recharge"
+            elif "stage" in kl or "extraction" in kl:
+                mt = "stage_of_extraction"
             if mt:
                 interp += f"{k}: {v} ({interpret_value(v, mt)}) | "
 
@@ -554,7 +571,7 @@ def generate_response(semantic_results, graph_results, query, cypher_used, role,
             r = turn.get("role", "user")
             c = turn.get("content", "")
             history_lines.append(f"{r.upper()}: {c}")
-        history_block = f"CONVERSATION HISTORY:\n" + "\n".join(history_lines) + "\n\n"
+        history_block = "CONVERSATION HISTORY:\n" + "\n".join(history_lines) + "\n\n"
 
     prompt = (
         f"You are a groundwater expert. Answer the user query with data and context.\n\n"

@@ -10,7 +10,6 @@ from typing import Optional, List, Dict, Any
 from core.graphrag import run_cypher
 import os
 import json
-import numpy as np
 from sklearn.linear_model import LinearRegression
 import google.generativeai as genai
 from dotenv import load_dotenv
@@ -199,7 +198,7 @@ def build_forecast(
 
     model = _train_model()
     projected = []
-    
+
     if model and series:
         try:
             base_pred = model.predict([[draft_val, rain_val, avail_val]])[0]
@@ -211,7 +210,7 @@ def build_forecast(
                 sim_rain = rain_val * (1 - 0.005 * t)
                 # availability slight decline 0.2% annually
                 sim_avail = avail_val * (1 - 0.002 * t)
-                
+
                 pred = model.predict([[sim_draft, sim_rain, sim_avail]])[0]
                 val = series[last_year] + (pred - base_pred)
                 projected.append({"year": yr, "value": round(max(val, 0), 2)})
@@ -291,11 +290,11 @@ def build_forecast(
             + (f"- Draft-to-recharge ratio: {balance['draft_to_recharge_ratio']} ({balance['label']})\n" if balance else "")
             + (f"- Simulated draft change: {draft_change_pct:+.0f}%\n" if draft_change_pct else "")
             + (f"- Risk crosses into {threshold_crossing['to_risk']} by {threshold_crossing['year']}\n" if threshold_crossing else "")
-            + f"\nRequirements:\n"
-            f"- Add practical context (e.g. what this means for farmers or local water planning) that the numbers alone don't convey.\n"
-            f"- Do not restate the raw percentages verbatim; the reader already sees them.\n"
-            f"- Do not reference code/LLM/model details.\n"
-            f"- Keep it strictly under 3 sentences."
+            + "\nRequirements:\n"
+            "- Add practical context (e.g. what this means for farmers or local water planning) that the numbers alone don't convey.\n"
+            "- Do not restate the raw percentages verbatim; the reader already sees them.\n"
+            "- Do not reference code/LLM/model details.\n"
+            "- Keep it strictly under 3 sentences."
         )
         try:
             m = genai.GenerativeModel("gemini-3.1-flash-lite")

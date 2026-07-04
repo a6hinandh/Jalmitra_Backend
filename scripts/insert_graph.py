@@ -56,7 +56,7 @@ def insert_all(tx, data):
 
         # Block Summary (make key unique per State)
         for k, v in state["reportSummary"].items():
-            if k != "total": 
+            if k != "total":
                 continue
             block = clean_dict(v.get("BLOCK", {}))
             tx.run("""
@@ -132,7 +132,7 @@ def insert_all(tx, data):
             SET f += $future
             MERGE (l)-[:HAS_FUTURE_USE]->(f)
         """, loc=loc, uuid=uuid, future=clean_dict(state["availabilityForFutureUse"]))
-        
+
 
         # Additional Recharge
         add_recharge = {k: v.get("total") for k, v in state["additionalRecharge"].items() if isinstance(v, dict)}
@@ -166,7 +166,7 @@ if __name__ == "__main__":
         data = json.load(f)
 
     driver = GraphDatabase.driver(
-        os.getenv("NEO4J_URI"), 
+        os.getenv("NEO4J_URI"),
         auth=(os.getenv("NEO4J_USER"), os.getenv("NEO4J_PASS"))
     )
 

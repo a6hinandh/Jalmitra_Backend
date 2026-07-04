@@ -57,10 +57,8 @@ The single most important design decision in Jalmitra is that answers are never 
 | **Forecasting** | Transparent linear-trend projection of stage-of-extraction 1–3 years out, with risk-band threshold-crossing alerts |
 | **What-if simulator** | Adjustable draft-change scenario testing built on the forecasting model |
 | **Farmer advisory** | Rule-based sowing/irrigation recommendations combining live groundwater data with ICAR/CWC crop water-requirement tables |
-| **Early-warning alerts** | Threshold-based email subscriptions per state/district |
 | **Crowdsourced field observations** | Community-submitted well-depth readings, clearly separated from official CGWB data |
 | **PDF report generation** | Narrative + chart + table reports for a state/district/year range |
-| **Satellite overlay** *(stretch)* | Vegetation/soil-moisture signal, currently seeded mock data behind a stable API contract pending a live Bhuvan/GEE integration |
 
 ### Design principles
 
@@ -256,11 +254,9 @@ SIHb-2025/
 │   └── embeddings.py       # Sentence-transformer embedding helpers
 ├── services/
 │   ├── advisory_service.py           # Farmer advisory recommendations
-│   ├── alerts_service.py             # Alert rules + SQLite-backed alerts.db
 │   ├── field_observations_service.py # Field data submission/retrieval
 │   ├── forecast_service.py           # Linear-trend groundwater forecasting
-│   ├── reports_service.py            # PDF/CSV report generation
-│   └── satellite_service.py          # Satellite-derived indicators
+│   └── reports_service.py            # PDF/CSV report generation
 ├── scripts/                # Dev-only seeding, debug, and indexing scripts
 │   ├── fetch_states.py     # Pull CGWB data → data/states, data/output
 │   ├── insert_data.py      # Embed + upsert into Pinecone

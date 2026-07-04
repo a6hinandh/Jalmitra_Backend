@@ -1,3 +1,7 @@
+# torch + sentence-transformers power the OPTIONAL Pinecone semantic-search layer.
+# They are only imported at runtime when PINECONE_ACTIVATION=true (see core/graphrag.py).
+# Production runs with PINECONE_ACTIVATION=false and never loads them, so the 512MB
+# instance stays within its memory budget while the capability remains in the codebase.
 --extra-index-url https://download.pytorch.org/whl/cpu
 torch
 
@@ -6,7 +10,10 @@ fastapi>=0.111.0
 uvicorn[standard]>=0.29.0
 
 # AI / ML
-google-generativeai>=0.7.0
+# Pinned: google-generativeai's transitive deps (grpcio-status, googleapis-common-protos,
+# protobuf) otherwise trigger long pip backtracking. Pin the tree to a known-good set.
+google-generativeai==0.8.6
+protobuf==5.29.6
 sentence-transformers>=2.2.0
 pinecone>=7.0.0
 neo4j>=5.0.0

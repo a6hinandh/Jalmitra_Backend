@@ -15,7 +15,7 @@ from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
-from core.graphrag import run_cypher, embed_model, pine_index
+from core.graphrag import run_cypher, get_embed_model, pine_index, PINECONE_ACTIVATION
 
 METRICS = ["rainfall", "recharge", "draft", "availability"]
 METRIC_REL = {
@@ -101,9 +101,12 @@ def dataset_to_csv(dataset: Dict[str, List[Dict[str, Any]]]) -> str:
 def export_pinecone_records(state: str, top_k: int = 20) -> List[Dict[str, Any]]:
     """Pull the semantic-search records (text + metadata) indexed for a state.
     Uses a metadata filter so we get this state's own record(s), not just whatever
-    ranks highest by embedding similarity."""
+    ranks highest by embedding similarity.
+    Returns [] when the Pinecone semantic layer is disabled (production default)."""
+    if not PINECONE_ACTIVATION or pine_index is None:
+        return []
     try:
-        vec = embed_model.encode([f"Groundwater report for {state.title()}"])[0].tolist()
+        vec = get_embed_model().encode([f"Groundwater report for {state.title()}"])[0].tolist()
         res = pine_index.query(
             vector=vec, top_k=top_k, include_metadata=True,
             filter={"State": {"$eq": state.title()}},

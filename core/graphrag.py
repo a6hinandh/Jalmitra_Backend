@@ -7,7 +7,6 @@ import os
 import json
 import re
 import time
-import torch
 import threading
 import sys
 from typing import Dict, List, Any, Optional, Tuple
@@ -15,10 +14,17 @@ from functools import lru_cache
 from dotenv import load_dotenv
 from neo4j import GraphDatabase
 from pinecone import Pinecone
-from sentence_transformers import SentenceTransformer
 import google.generativeai as genai
 from langdetect import detect
 from deep_translator import GoogleTranslator
+
+# NOTE: `torch` and `sentence_transformers` are intentionally NOT imported here.
+# The Pinecone semantic-search layer is fully implemented but gated behind the
+# PINECONE_ACTIVATION env flag (see below). Importing torch alone costs ~250-350MB
+# RAM and, together with the embedding model, OOM-kills the 512MB production
+# instance (Render free tier). Those imports are therefore deferred into
+# get_embed_model(), which only runs when PINECONE_ACTIVATION is true. Production
+# runs on Neo4j + Gemini; enable Pinecone locally where more RAM is available.
 
 load_dotenv()
 
@@ -33,6 +39,11 @@ PINECONE_INDEX   = os.getenv("PINECONE_INDEX", "gw-index")
 EMBED_MODEL_NAME = os.getenv("EMBED_MODEL", "all-MiniLM-L6-v2")
 GENAI_API_KEY    = os.getenv("GENAI_API_KEY")
 
+# Master switch for the Pinecone semantic-search pipeline. Defaults to OFF so the
+# production deployment (Neo4j + Gemini) never loads torch/sentence-transformers.
+# Set PINECONE_ACTIVATION=true locally to enable vector retrieval.
+PINECONE_ACTIVATION = os.getenv("PINECONE_ACTIVATION", "false").lower() in ("1", "true", "yes")
+
 CACHE_SIZE    = 100
 QUERY_TIMEOUT = 30
 MAX_RETRIES   = 3
@@ -45,10 +56,10 @@ if not (NEO4J_URI and NEO4J_USER and NEO4J_PASS):
     sys.stderr.write("FATAL ERROR: Neo4j credentials (NEO4J_URI, NEO4J_USER, NEO4J_PASS) are missing! Please configure them in Render Env settings.\n")
     sys.stderr.flush()
     raise SystemExit("Neo4j credentials required")
-if not PINECONE_API_KEY:
-    sys.stderr.write("FATAL ERROR: PINECONE_API_KEY environment variable is missing! Please configure it in Render Env settings.\n")
+if PINECONE_ACTIVATION and not PINECONE_API_KEY:
+    sys.stderr.write("FATAL ERROR: PINECONE_ACTIVATION is true but PINECONE_API_KEY is missing! Set PINECONE_API_KEY, or set PINECONE_ACTIVATION=false to run without semantic search.\n")
     sys.stderr.flush()
-    raise SystemExit("PINECONE_API_KEY is required")
+    raise SystemExit("PINECONE_API_KEY is required when PINECONE_ACTIVATION is true")
 
 driver = GraphDatabase.driver(
     NEO4J_URI,
@@ -57,25 +68,39 @@ driver = GraphDatabase.driver(
     max_connection_lifetime=300,
 )
 
-pc = Pinecone(api_key=PINECONE_API_KEY)
-pine_index = pc.Index(PINECONE_INDEX)
+# Only connect to Pinecone when the semantic layer is activated. In production
+# these stay None and the chat pipeline runs on Neo4j + Gemini alone.
+pc = None
+pine_index = None
+if PINECONE_ACTIVATION and PINECONE_API_KEY:
+    pc = Pinecone(api_key=PINECONE_API_KEY)
+    pine_index = pc.Index(PINECONE_INDEX)
 
-torch.set_num_threads(1)
 genai.configure(api_key=GENAI_API_KEY)
 
 _embed_lock = threading.Lock()
 embed_model = None
 
 def get_embed_model():
+    """Lazily load the sentence-transformers model. torch and sentence_transformers
+    are imported *here*, not at module top, so the ~400MB+ dependency chain only
+    loads when PINECONE_ACTIVATION is true. Never reached in the production path."""
     global embed_model
+    if not PINECONE_ACTIVATION:
+        return None
     if embed_model is None:
         with _embed_lock:
             if embed_model is None:
+                import torch
+                from sentence_transformers import SentenceTransformer
+                torch.set_num_threads(1)
                 embed_model = SentenceTransformer(EMBED_MODEL_NAME, model_kwargs={"dtype": torch.bfloat16})
     return embed_model
 
 def _warmup():
     try:
+        if pc is None or pine_index is None:
+            return
         if PINECONE_INDEX not in pc.list_indexes().names():
             print(f"Warning: Pinecone index '{PINECONE_INDEX}' not found. Please verify configuration.")
             return
@@ -88,7 +113,8 @@ def _warmup():
 # OOM-kill the process on small instances (e.g. Render free tier) before the
 # web server binds its port. Gate it behind WARMUP_ON_STARTUP so the port opens
 # fast by default; the model still loads lazily on the first /chat request.
-if os.getenv("WARMUP_ON_STARTUP", "false").lower() in ("1", "true", "yes"):
+# Warmup is additionally a no-op unless the semantic layer is activated.
+if PINECONE_ACTIVATION and os.getenv("WARMUP_ON_STARTUP", "false").lower() in ("1", "true", "yes"):
     threading.Thread(target=_warmup, daemon=True).start()
 
 
@@ -534,6 +560,10 @@ def run_cypher(query: str) -> List[Dict[str, Any]]:
 
 @lru_cache(maxsize=CACHE_SIZE)
 def query_pinecone(query_text: str, top_k: int = 5) -> tuple:
+    # Semantic search disabled (production default) — skip embedding entirely so
+    # torch never loads. Chat falls back to Neo4j graph results + Gemini.
+    if not PINECONE_ACTIVATION or pine_index is None:
+        return ()
     try:
         vec = get_embed_model().encode([query_text])[0].tolist()
         res = pine_index.query(vector=vec, top_k=top_k, include_metadata=True)

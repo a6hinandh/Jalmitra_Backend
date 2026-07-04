@@ -93,9 +93,37 @@ User Query
 
 **Data sources**
 - Neo4j AuraDB — 28-state groundwater knowledge graph
-- Pinecone — 768-dim sentence embeddings (`all-mpnet-base-v2`)
+- Pinecone — sentence embeddings (optional layer, see below)
 - IITH INGRES API — district-level Kerala data
 - CGWB / Ministry of Jal Shakti datasets (2023–2024)
+
+### Deployment modes: why Pinecone is off in production
+
+The Pinecone semantic-search layer (step 3 above) is **fully implemented but gated
+behind the `PINECONE_ACTIVATION` environment flag**, and it is **disabled in
+production**. Here's why:
+
+Semantic retrieval needs `torch` + `sentence-transformers` to embed the query.
+Importing `torch` alone costs ~250–350MB of RAM, and the embedding model adds
+another ~90–420MB on top. Together with FastAPI, pandas, numpy and scikit-learn,
+that comfortably exceeds the **512MB memory limit of the free-tier hosting
+instance** — the process gets OOM-killed on the first `/chat` request.
+
+So the two supported modes are:
+
+| Mode | `PINECONE_ACTIVATION` | Pipeline | Where |
+|---|---|---|---|
+| **Production** | `false` (default) | Neo4j graph + Gemini | 512MB free-tier deploy |
+| **Full / local** | `true` | Neo4j graph + **Pinecone semantic** + Gemini | local / ≥1GB RAM |
+
+When `PINECONE_ACTIVATION` is `false`, `torch` and `sentence-transformers` are
+**never imported** (the imports are deferred into `get_embed_model()`), so the
+process stays well within budget. The chat pipeline degrades gracefully to
+graph-only retrieval — [`query_pinecone`](core/graphrag.py) simply returns no
+semantic hits and Gemini answers from the Neo4j graph results.
+
+To run the full pipeline locally, set `PINECONE_ACTIVATION=true` (and a valid
+`PINECONE_API_KEY`) in your `.env` on a machine with ≥1GB RAM.
 
 ---
 
@@ -146,10 +174,11 @@ Open `http://localhost:8000/docs` for the interactive Swagger UI.
 | `NEO4J_URI` | ✅ | Bolt URI, e.g. `bolt://localhost:7687` or AuraDB URI |
 | `NEO4J_USER` | ✅ | Username (default: `neo4j`) |
 | `NEO4J_PASS` | ✅ | Password |
-| `PINECONE_API_KEY` | ✅ | From [pinecone.io](https://www.pinecone.io/) |
-| `PINECONE_INDEX` | ✅ | Index name (768 dimensions, cosine metric) |
 | `GENAI_API_KEY` | ✅ | Google Gemini API key |
-| `EMBED_MODEL` | ➖ | Sentence-transformer model (default: `all-mpnet-base-v2`) |
+| `PINECONE_ACTIVATION` | ➖ | `true` to enable the semantic layer (default `false`). See [Deployment modes](#deployment-modes-why-pinecone-is-off-in-production) |
+| `PINECONE_API_KEY` | ⚠️ | Required **only** when `PINECONE_ACTIVATION=true`. From [pinecone.io](https://www.pinecone.io/) |
+| `PINECONE_INDEX` | ➖ | Index name (must match `EMBED_MODEL` dimension). Used only when activated |
+| `EMBED_MODEL` | ➖ | Sentence-transformer model, used only when activated (default: `all-MiniLM-L6-v2`) |
 | `ALLOWED_ORIGINS` | ➖ | Comma-separated CORS origins (default: `http://localhost:3001,http://localhost:5173`) |
 
 ---

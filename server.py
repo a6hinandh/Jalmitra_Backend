@@ -379,7 +379,7 @@ async def root():
 
 @app.get("/health", tags=["Info"])
 async def health():
-    from core.graphrag import driver, pine_index
+    from core.graphrag import driver, pine_index, PINECONE_ACTIVATION
     neo4j_ok, pinecone_ok = False, False
     try:
         with driver.session() as s:
@@ -387,14 +387,25 @@ async def health():
         neo4j_ok = True
     except Exception:
         pass
-    try:
-        pine_index.describe_index_stats()
-        pinecone_ok = True
-    except Exception:
-        pass
+
+    # Pinecone semantic search is gated behind PINECONE_ACTIVATION. In production
+    # it is intentionally disabled (512MB instance can't hold torch), so report it
+    # as "disabled" and base overall health on Neo4j alone.
+    if PINECONE_ACTIVATION and pine_index is not None:
+        try:
+            pine_index.describe_index_stats()
+            pinecone_ok = True
+        except Exception:
+            pass
+        pinecone_status = "up" if pinecone_ok else "down"
+        overall_ok = neo4j_ok and pinecone_ok
+    else:
+        pinecone_status = "disabled"
+        overall_ok = neo4j_ok
+
     return {
-        "status": "healthy" if (neo4j_ok and pinecone_ok) else "degraded",
-        "services": {"neo4j": "up" if neo4j_ok else "down", "pinecone": "up" if pinecone_ok else "down"},
+        "status": "healthy" if overall_ok else "degraded",
+        "services": {"neo4j": "up" if neo4j_ok else "down", "pinecone": pinecone_status},
         "data_availability": {"years": VALID_YEARS, "districts": "Kerala only"},
         "timestamp": time.time(),
     }

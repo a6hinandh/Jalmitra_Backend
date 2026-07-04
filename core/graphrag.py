@@ -7,6 +7,7 @@ import os
 import json
 import re
 import time
+import torch
 from typing import Dict, List, Any, Optional, Tuple
 from functools import lru_cache
 from dotenv import load_dotenv
@@ -50,6 +51,7 @@ if PINECONE_INDEX not in pc.list_indexes().names():
     raise SystemExit(f"Pinecone index '{PINECONE_INDEX}' not found. Create it or set PINECONE_INDEX in .env.")
 pine_index = pc.Index(PINECONE_INDEX)
 
+torch.set_num_threads(1)
 embed_model = SentenceTransformer(EMBED_MODEL_NAME)
 genai.configure(api_key=GENAI_API_KEY)
 

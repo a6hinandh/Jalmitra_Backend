@@ -8,6 +8,7 @@ import json
 import re
 import time
 import torch
+import threading
 from typing import Dict, List, Any, Optional, Tuple
 from functools import lru_cache
 from dotenv import load_dotenv
@@ -47,23 +48,33 @@ driver = GraphDatabase.driver(
 )
 
 pc = Pinecone(api_key=PINECONE_API_KEY)
-if PINECONE_INDEX not in pc.list_indexes().names():
-    raise SystemExit(f"Pinecone index '{PINECONE_INDEX}' not found. Create it or set PINECONE_INDEX in .env.")
 pine_index = pc.Index(PINECONE_INDEX)
 
 torch.set_num_threads(1)
-embed_model = SentenceTransformer(EMBED_MODEL_NAME)
 genai.configure(api_key=GENAI_API_KEY)
 
+_embed_lock = threading.Lock()
+embed_model = None
+
+def get_embed_model():
+    global embed_model
+    if embed_model is None:
+        with _embed_lock:
+            if embed_model is None:
+                embed_model = SentenceTransformer(EMBED_MODEL_NAME)
+    return embed_model
 
 def _warmup():
     try:
-        dummy = embed_model.encode(["warmup"])[0].tolist()
+        if PINECONE_INDEX not in pc.list_indexes().names():
+            print(f"Warning: Pinecone index '{PINECONE_INDEX}' not found. Please verify configuration.")
+            return
+        dummy = get_embed_model().encode(["warmup"])[0].tolist()
         pine_index.query(vector=dummy, top_k=1)
     except Exception:
         pass
 
-_warmup()
+threading.Thread(target=_warmup, daemon=True).start()
 
 
 SCHEMA = """
@@ -509,7 +520,7 @@ def run_cypher(query: str) -> List[Dict[str, Any]]:
 @lru_cache(maxsize=CACHE_SIZE)
 def query_pinecone(query_text: str, top_k: int = 5) -> tuple:
     try:
-        vec = embed_model.encode([query_text])[0].tolist()
+        vec = get_embed_model().encode([query_text])[0].tolist()
         res = pine_index.query(vector=vec, top_k=top_k, include_metadata=True)
         results = tuple(
             {"id": m.id, "score": round(m.score, 4), "metadata": dict(m.metadata or {})}

@@ -1,5 +1,6 @@
 # embeddings.py
 
+import os
 import json
 from sentence_transformers import SentenceTransformer
 
@@ -167,7 +168,10 @@ def load_data(json_file):
     return ids, texts, metadatas
 
 def create_embeddings(texts):
-    model = SentenceTransformer('all-mpnet-base-v2')
+    # Must match EMBED_MODEL used at query time in core/graphrag.py, otherwise the
+    # vector dimensions won't match the Pinecone index.
+    model_name = os.getenv("EMBED_MODEL", "all-MiniLM-L6-v2")
+    model = SentenceTransformer(model_name)
     embeddings = model.encode(texts, show_progress_bar=True)
     return embeddings
 

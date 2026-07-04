@@ -27,7 +27,10 @@ NEO4J_USER = os.getenv("NEO4J_USER")
 NEO4J_PASS = os.getenv("NEO4J_PASS")
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 PINECONE_INDEX   = os.getenv("PINECONE_INDEX", "gw-index")
-EMBED_MODEL_NAME = os.getenv("EMBED_MODEL", "all-mpnet-base-v2")
+# all-MiniLM-L6-v2 (384-dim, ~90MB) fits the 512MB instance; all-mpnet-base-v2
+# (768-dim, ~420MB) OOMs it. Switching models requires the Pinecone index to be
+# re-created at the matching dimension (see scripts/pinecone_setup.py).
+EMBED_MODEL_NAME = os.getenv("EMBED_MODEL", "all-MiniLM-L6-v2")
 GENAI_API_KEY    = os.getenv("GENAI_API_KEY")
 
 CACHE_SIZE    = 100
@@ -81,7 +84,12 @@ def _warmup():
     except Exception:
         pass
 
-threading.Thread(target=_warmup, daemon=True).start()
+# Eagerly loading the embedding model at import costs ~500MB RAM, which can
+# OOM-kill the process on small instances (e.g. Render free tier) before the
+# web server binds its port. Gate it behind WARMUP_ON_STARTUP so the port opens
+# fast by default; the model still loads lazily on the first /chat request.
+if os.getenv("WARMUP_ON_STARTUP", "false").lower() in ("1", "true", "yes"):
+    threading.Thread(target=_warmup, daemon=True).start()
 
 
 SCHEMA = """

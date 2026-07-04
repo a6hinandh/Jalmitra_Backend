@@ -35,11 +35,18 @@ Thanks for your interest in improving the Jalmitra GraphRAG backend. This guide 
 2. Copy the Bolt URI, username, and password into `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASS`.
 3. Seed the graph using `python scripts/insert_graph.py` (loads `data/output/india.json`) and, for Kerala district detail, `python scripts/insert_graph_district.py`. Run these from the repository root.
 
-### Pinecone
+### Pinecone (optional — semantic search layer)
+
+Pinecone powers an optional semantic-search layer on top of the Neo4j graph. It's
+**disabled by default** (`PINECONE_ACTIVATION=false`) because `torch` +
+`sentence-transformers` don't fit in the 512MB production instance — see
+[README → Deployment modes](README.md#deployment-modes-why-pinecone-is-off-in-production)
+for the full explanation. You only need this section if you're running the full
+pipeline locally (≥1GB RAM).
 
 1. Create an account and API key at [pinecone.io](https://www.pinecone.io/).
-2. Create an index with **768 dimensions** and **cosine** metric (matches `all-mpnet-base-v2` embeddings), or run `python scripts/pinecone_setup.py`.
-3. Set `PINECONE_API_KEY` and `PINECONE_INDEX` in `.env`.
+2. Create an index matching your `EMBED_MODEL`'s dimension and **cosine** metric — 384 dimensions for the default `all-MiniLM-L6-v2`, or 768 for `all-mpnet-base-v2` — or run `python scripts/pinecone_setup.py`.
+3. Set `PINECONE_ACTIVATION=true`, `PINECONE_API_KEY`, and `PINECONE_INDEX` in `.env`.
 4. Populate the index with `python scripts/insert_data.py`.
 
 ### Google Gemini
